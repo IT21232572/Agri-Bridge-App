@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { Container, Table, Button, Badge, Card, Modal, Form } from 'react-bootstrap';
+import { Container, Table, Button, Badge, Card, Modal, Form, ListGroup } from 'react-bootstrap';
 
-const MyRequests = ({ requests, onDeleteRequest, onUpdateRequest }) => {
+const MyRequests = ({ requests, onDeleteRequest, onUpdateRequest, onAcceptOffer }) => {
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showOffersModal, setShowOffersModal] = useState(false);
   const [selectedReq, setSelectedReq] = useState(null);
 
   const handleDelete = (id) => {
@@ -14,6 +15,11 @@ const MyRequests = ({ requests, onDeleteRequest, onUpdateRequest }) => {
   const handleEditClick = (req) => {
     setSelectedReq({ ...req });
     setShowEditModal(true);
+  };
+
+  const handleViewOffers = (req) => {
+    setSelectedReq(req);
+    setShowOffersModal(true);
   };
 
   const handleSaveEdit = (e) => {
@@ -28,11 +34,17 @@ const MyRequests = ({ requests, onDeleteRequest, onUpdateRequest }) => {
   };
 
   const getStatusBadge = (status) => {
+    if (status.includes('Matched')) {
+      return <Badge bg="success" className="px-2 py-1">{status}</Badge>;
+    }
+    if (status.includes('Offer Accepted')) {
+      return <Badge bg="info" text="dark" className="px-2 py-1">{status}</Badge>;
+    }
     switch (status) {
       case 'Active':
-        return <Badge bg="success">Active</Badge>;
+        return <Badge bg="primary">Active</Badge>;
       case 'Pending Match':
-        return <Badge bg="warning" text="dark">Pending Match</Badge>;
+        return <Badge bg="warning" text="dark">⏳ Pending Match</Badge>;
       case 'Completed':
         return <Badge bg="secondary">Completed</Badge>;
       default:
@@ -44,9 +56,9 @@ const MyRequests = ({ requests, onDeleteRequest, onUpdateRequest }) => {
     <Container className="mt-4 mb-5">
       <Card className="shadow-sm border-0">
         <Card.Header as="h5" className="bg-success text-white py-3 d-flex justify-content-between align-items-center">
-          <span>My Crop Requests & Bids</span>
+          <span>My Requests & Automated Match Status</span>
           <Badge bg="light" text="dark" className="px-3 py-2">
-            Total: {requests.length} Requests
+            Total: {requests.length} Posts
           </Badge>
         </Card.Header>
         <Card.Body className="p-0">
@@ -55,12 +67,13 @@ const MyRequests = ({ requests, onDeleteRequest, onUpdateRequest }) => {
               <thead className="table-light">
                 <tr>
                   <th>Req ID</th>
+                  <th>Role Type</th>
                   <th>Title & Category</th>
                   <th>Location</th>
-                  <th>Base Price (LKR)</th>
-                  <th>End Date</th>
-                  <th>Offers</th>
-                  <th>Status</th>
+                  <th>Price (LKR)</th>
+                  <th>Valid Until</th>
+                  <th>Pending Offers</th>
+                  <th>Match / Status</th>
                   <th className="text-center">Actions</th>
                 </tr>
               </thead>
@@ -70,6 +83,11 @@ const MyRequests = ({ requests, onDeleteRequest, onUpdateRequest }) => {
                     <tr key={req.id}>
                       <td className="fw-semibold text-secondary">{req.id}</td>
                       <td>
+                        <Badge bg={req.requestType === 'Buyer Demand' ? 'primary' : 'success'}>
+                          {req.requestType || 'Buyer Demand'}
+                        </Badge>
+                      </td>
+                      <td>
                         <div className="fw-bold">{req.title}</div>
                         <small className="text-muted">{req.category}</small>
                       </td>
@@ -77,11 +95,16 @@ const MyRequests = ({ requests, onDeleteRequest, onUpdateRequest }) => {
                       <td className="fw-bold text-success">{req.startingPrice}</td>
                       <td>{req.biddingEndTime}</td>
                       <td>
-                        <Badge bg="primary" pill>
-                          {req.offersCount || 0} Bids
-                        </Badge>
+                        <Button 
+                          variant={req.offers && req.offers.length > 0 ? "outline-primary" : "light"}
+                          size="sm"
+                          className="fw-bold"
+                          onClick={() => handleViewOffers(req)}
+                        >
+                          📩 {req.offers ? req.offers.length : 0} Offers
+                        </Button>
                       </td>
-                      <td>{getStatusBadge(req.status || 'Active')}</td>
+                      <td>{getStatusBadge(req.status || 'Pending Match')}</td>
                       <td className="text-center">
                         <Button
                           variant="outline-primary"
@@ -103,7 +126,7 @@ const MyRequests = ({ requests, onDeleteRequest, onUpdateRequest }) => {
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="8" className="text-center py-4 text-muted">
+                    <td colSpan="9" className="text-center py-4 text-muted">
                       No requests found.
                     </td>
                   </tr>
@@ -114,16 +137,63 @@ const MyRequests = ({ requests, onDeleteRequest, onUpdateRequest }) => {
         </Card.Body>
       </Card>
 
+      {/* View & Manage Offers Modal */}
+      {selectedReq && (
+        <Modal show={showOffersModal} onHide={() => setShowOffersModal(false)} size="lg" centered>
+          <Modal.Header closeButton className="bg-success text-white">
+            <Modal.Title className="h5">Offers Received for: {selectedReq.title}</Modal.Title>
+          </Modal.Header>
+          <Modal.Body className="p-4">
+            <p className="text-muted mb-3">
+              Review direct offers sent by other users. Accepting an offer moves it to 'Accepted Deals' and locks this order.
+            </p>
+            {selectedReq.offers && selectedReq.offers.length > 0 ? (
+              <ListGroup className="gap-2">
+                {selectedReq.offers.map((offer, index) => (
+                  <ListGroup.Item key={index} className="p-3 border rounded shadow-sm d-flex justify-content-between align-items-center">
+                    <div>
+                      <div className="d-flex align-items-center gap-2 mb-1">
+                        <strong className="text-success fs-5">LKR {offer.offeredPrice}</strong>
+                        <Badge bg="info">Delivery: {offer.deliveryDate}</Badge>
+                      </div>
+                      <div className="small text-dark"><strong>From:</strong> {offer.sender || 'Registered Partner'}</div>
+                      <div className="small text-muted fst-italic">"{offer.remarks || 'No remarks added'}"</div>
+                    </div>
+                    <div>
+                      <Button 
+                        variant="success" 
+                        size="sm" 
+                        className="fw-bold px-3"
+                        onClick={() => {
+                          onAcceptOffer(selectedReq.id, offer);
+                          setShowOffersModal(false);
+                        }}
+                      >
+                        Accept Deal ✅
+                      </Button>
+                    </div>
+                  </ListGroup.Item>
+                ))}
+              </ListGroup>
+            ) : (
+              <div className="text-center py-4 text-muted">
+                No direct pending offers for this post right now.
+              </div>
+            )}
+          </Modal.Body>
+        </Modal>
+      )}
+
       {/* Edit Modal */}
       {selectedReq && (
         <Modal show={showEditModal} onHide={() => setShowEditModal(false)} centered>
           <Form onSubmit={handleSaveEdit}>
             <Modal.Header closeButton>
-              <Modal.Title>Edit Request: {selectedReq.id}</Modal.Title>
+              <Modal.Title>Edit Post: {selectedReq.id}</Modal.Title>
             </Modal.Header>
             <Modal.Body>
               <Form.Group className="mb-3">
-                <Form.Label>Request Title</Form.Label>
+                <Form.Label>Title</Form.Label>
                 <Form.Control
                   type="text"
                   name="title"
@@ -133,7 +203,7 @@ const MyRequests = ({ requests, onDeleteRequest, onUpdateRequest }) => {
                 />
               </Form.Group>
               <Form.Group className="mb-3">
-                <Form.Label>Base Price (LKR)</Form.Label>
+                <Form.Label>Price (LKR)</Form.Label>
                 <Form.Control
                   type="number"
                   name="startingPrice"
