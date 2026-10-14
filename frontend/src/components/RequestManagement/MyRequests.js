@@ -1,65 +1,27 @@
 import React, { useState } from 'react';
 import { Container, Table, Button, Badge, Card, Modal, Form } from 'react-bootstrap';
 
-const initialMyRequests = [
-  {
-    id: 'REQ-101',
-    title: 'Need 100kg Big Onions',
-    category: 'Vegetables',
-    location: 'Dambulla',
-    startingPrice: 350,
-    biddingEndTime: '2026-10-25',
-    status: 'Active',
-    offersCount: 4
-  },
-  {
-    id: 'REQ-102',
-    title: '500kg Organic Cavendish Bananas',
-    category: 'Fruits',
-    location: 'Embilipitiya',
-    startingPrice: 180,
-    biddingEndTime: '2026-10-22',
-    status: 'Pending Match',
-    offersCount: 1
-  },
-  {
-    id: 'REQ-103',
-    title: 'Paddy Seeds (BG 352)',
-    category: 'Seeds',
-    location: 'Polonnaruwa',
-    startingPrice: 220,
-    biddingEndTime: '2026-10-10',
-    status: 'Completed',
-    offersCount: 6
-  }
-];
-
-const MyRequests = () => {
-  const [requests, setRequests] = useState(initialMyRequests);
+const MyRequests = ({ requests, onDeleteRequest, onUpdateRequest }) => {
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedReq, setSelectedReq] = useState(null);
 
-  // Delete Action
   const handleDelete = (id) => {
     if (window.confirm("Are you sure you want to cancel/delete this request?")) {
-      setRequests(requests.filter(item => item.id !== id));
+      onDeleteRequest(id);
     }
   };
 
-  // Edit Modal Open
   const handleEditClick = (req) => {
     setSelectedReq({ ...req });
     setShowEditModal(true);
   };
 
-  // Edit Save Action
   const handleSaveEdit = (e) => {
     e.preventDefault();
-    setRequests(requests.map(item => (item.id === selectedReq.id ? selectedReq : item)));
+    onUpdateRequest(selectedReq);
     setShowEditModal(false);
   };
 
-  // Edit form input change
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setSelectedReq({ ...selectedReq, [name]: value });
@@ -116,10 +78,10 @@ const MyRequests = () => {
                       <td>{req.biddingEndTime}</td>
                       <td>
                         <Badge bg="primary" pill>
-                          {req.offersCount} Bids
+                          {req.offersCount || 0} Bids
                         </Badge>
                       </td>
-                      <td>{getStatusBadge(req.status)}</td>
+                      <td>{getStatusBadge(req.status || 'Active')}</td>
                       <td className="text-center">
                         <Button
                           variant="outline-primary"
@@ -142,7 +104,7 @@ const MyRequests = () => {
                 ) : (
                   <tr>
                     <td colSpan="8" className="text-center py-4 text-muted">
-                      No active requests posted yet.
+                      No requests found.
                     </td>
                   </tr>
                 )}
@@ -152,7 +114,7 @@ const MyRequests = () => {
         </Card.Body>
       </Card>
 
-      {/* Edit Request Modal */}
+      {/* Edit Modal */}
       {selectedReq && (
         <Modal show={showEditModal} onHide={() => setShowEditModal(false)} centered>
           <Form onSubmit={handleSaveEdit}>

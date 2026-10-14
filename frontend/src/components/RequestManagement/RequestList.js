@@ -1,44 +1,7 @@
 import React, { useState } from 'react';
 import { Container, Row, Col, Card, Button, Form, Badge, InputGroup, Modal } from 'react-bootstrap';
 
-const initialRequests = [
-  {
-    id: 'REQ-101',
-    title: 'Need 100kg Big Onions',
-    category: 'Vegetables',
-    location: 'Dambulla',
-    startingPrice: 350,
-    biddingEndTime: '2026-10-25 18:00',
-    description: 'Looking for high quality dried big onions directly from local farms. Must be clean and packed in 25kg bags.',
-    buyerName: 'Sunil Perera (Wholesale Trader)',
-    contact: '+94 77 123 4567'
-  },
-  {
-    id: 'REQ-102',
-    title: '500kg Organic Cavendish Bananas',
-    category: 'Fruits',
-    location: 'Embilipitiya',
-    startingPrice: 180,
-    biddingEndTime: '2026-10-22 12:00',
-    description: 'Bulk order for export standard bananas with minimal bruises. Green harvest state preferred.',
-    buyerName: 'AgroExports Pvt Ltd',
-    contact: '+94 71 987 6543'
-  },
-  {
-    id: 'REQ-103',
-    title: 'Paddy Seeds (BG 352)',
-    category: 'Seeds',
-    location: 'Polonnaruwa',
-    startingPrice: 220,
-    biddingEndTime: '2026-10-20 15:30',
-    description: 'Certified paddy seeds needed for upcoming Maha season. Germination rate should exceed 85%.',
-    buyerName: 'Kamal Jayawardena',
-    contact: '+94 70 456 7890'
-  }
-];
-
-const RequestList = () => {
-  const [requests] = useState(initialRequests);
+const RequestList = ({ requests, onNavigateToAdd }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
 
@@ -87,9 +50,12 @@ const RequestList = () => {
           <h2 className="fw-bold text-success mb-1">Agri Requests Marketplace</h2>
           <p className="text-muted">Browse buyers' current crop & resource demands</p>
         </div>
+        <Button variant="success" className="fw-bold shadow-sm" onClick={onNavigateToAdd}>
+          + Post New Request
+        </Button>
       </div>
 
-      {/* Search & Category Filter Section */}
+      {/* Search & Category Filter */}
       <Card className="p-3 mb-4 shadow-sm border-0 bg-light">
         <Row className="g-3">
           <Col md={8}>
@@ -119,7 +85,7 @@ const RequestList = () => {
         </Row>
       </Card>
 
-      {/* Requests Display Grid */}
+      {/* Grid */}
       <Row className="g-4">
         {filteredRequests.length > 0 ? (
           filteredRequests.map((req) => (
@@ -164,7 +130,7 @@ const RequestList = () => {
         )}
       </Row>
 
-      {/* View Details & Make Offer Modal */}
+      {/* Modal */}
       {activeRequest && (
         <Modal show={showModal} onHide={handleCloseModal} size="lg" centered>
           <Modal.Header closeButton className="bg-success text-white">
