@@ -1,49 +1,84 @@
 import React, { useState } from 'react';
-import { Container, Row, Col, Card, Button, Form, Badge, InputGroup } from 'react-bootstrap';
+import { Container, Row, Col, Card, Button, Form, Badge, InputGroup, Modal } from 'react-bootstrap';
 
-// Viva ekata pennanna dummy requests set ekak
 const initialRequests = [
   {
-    id: '1',
+    id: 'REQ-101',
     title: 'Need 100kg Big Onions',
     category: 'Vegetables',
     location: 'Dambulla',
     startingPrice: 350,
     biddingEndTime: '2026-10-25 18:00',
-    description: 'Looking for high quality dried big onions from local farms.'
+    description: 'Looking for high quality dried big onions directly from local farms. Must be clean and packed in 25kg bags.',
+    buyerName: 'Sunil Perera (Wholesale Trader)',
+    contact: '+94 77 123 4567'
   },
   {
-    id: '2',
+    id: 'REQ-102',
     title: '500kg Organic Cavendish Bananas',
     category: 'Fruits',
     location: 'Embilipitiya',
     startingPrice: 180,
     biddingEndTime: '2026-10-22 12:00',
-    description: 'Bulk order for export standard bananas with minimal bruises.'
+    description: 'Bulk order for export standard bananas with minimal bruises. Green harvest state preferred.',
+    buyerName: 'AgroExports Pvt Ltd',
+    contact: '+94 71 987 6543'
   },
   {
-    id: '3',
+    id: 'REQ-103',
     title: 'Paddy Seeds (BG 352)',
     category: 'Seeds',
     location: 'Polonnaruwa',
     startingPrice: 220,
     biddingEndTime: '2026-10-20 15:30',
-    description: 'Certified paddy seeds needed for upcoming Maha season.'
+    description: 'Certified paddy seeds needed for upcoming Maha season. Germination rate should exceed 85%.',
+    buyerName: 'Kamal Jayawardena',
+    contact: '+94 70 456 7890'
   }
 ];
 
 const RequestList = () => {
-  const [requests, setRequests] = useState(initialRequests);
+  const [requests] = useState(initialRequests);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
 
-  // Search saha Filter logic eka
+  // Modal State
+  const [showModal, setShowModal] = useState(false);
+  const [activeRequest, setActiveRequest] = useState(null);
+  const [offerData, setOfferData] = useState({
+    offeredPrice: '',
+    deliveryDate: '',
+    remarks: ''
+  });
+
   const filteredRequests = requests.filter(req => {
     const matchesSearch = req.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           req.location.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === 'All' || req.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
+
+  const handleOpenModal = (req) => {
+    setActiveRequest(req);
+    setOfferData({ offeredPrice: '', deliveryDate: '', remarks: '' });
+    setShowModal(true);
+  };
+
+  const handleCloseModal = () => {
+    setShowModal(false);
+    setActiveRequest(null);
+  };
+
+  const handleOfferChange = (e) => {
+    const { name, value } = e.target;
+    setOfferData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleOfferSubmit = (e) => {
+    e.preventDefault();
+    alert(`Offer of LKR ${offerData.offeredPrice} submitted successfully for "${activeRequest.title}"! (Alert sent to buyer)`);
+    handleCloseModal();
+  };
 
   return (
     <Container className="mt-4 mb-5">
@@ -52,9 +87,6 @@ const RequestList = () => {
           <h2 className="fw-bold text-success mb-1">Agri Requests Marketplace</h2>
           <p className="text-muted">Browse buyers' current crop & resource demands</p>
         </div>
-        <Button variant="success" className="fw-bold shadow-sm">
-          + Post New Request
-        </Button>
       </div>
 
       {/* Search & Category Filter Section */}
@@ -114,7 +146,11 @@ const RequestList = () => {
                     </div>
                   </div>
 
-                  <Button variant="outline-success" className="w-100 fw-bold">
+                  <Button 
+                    variant="outline-success" 
+                    className="w-100 fw-bold"
+                    onClick={() => handleOpenModal(req)}
+                  >
                     View Details & Offer
                   </Button>
                 </Card.Body>
@@ -127,6 +163,89 @@ const RequestList = () => {
           </Col>
         )}
       </Row>
+
+      {/* View Details & Make Offer Modal */}
+      {activeRequest && (
+        <Modal show={showModal} onHide={handleCloseModal} size="lg" centered>
+          <Modal.Header closeButton className="bg-success text-white">
+            <Modal.Title className="h5">Request Details & Place Offer</Modal.Title>
+          </Modal.Header>
+          <Modal.Body className="p-4">
+            <Row className="mb-3">
+              <Col md={8}>
+                <h4 className="fw-bold text-dark">{activeRequest.title}</h4>
+                <Badge bg="secondary" className="me-2">{activeRequest.category}</Badge>
+                <span className="text-muted small">📍 {activeRequest.location}</span>
+                <p className="mt-3 text-secondary">{activeRequest.description}</p>
+              </Col>
+              <Col md={4} className="border-start">
+                <div className="bg-light p-3 rounded">
+                  <span className="text-muted small d-block">Target/Base Price:</span>
+                  <h4 className="text-success fw-bold">LKR {activeRequest.startingPrice}</h4>
+                  <hr />
+                  <span className="text-muted small d-block">Posted By:</span>
+                  <strong className="d-block text-dark">{activeRequest.buyerName}</strong>
+                  <small className="text-muted">{activeRequest.contact}</small>
+                </div>
+              </Col>
+            </Row>
+
+            <hr />
+
+            <h5 className="fw-bold text-success mb-3">Submit Your Offer / Bid</h5>
+            <Form onSubmit={handleOfferSubmit}>
+              <Row>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label className="fw-semibold">Your Offered Price (LKR)</Form.Label>
+                    <Form.Control
+                      type="number"
+                      name="offeredPrice"
+                      placeholder={`E.g. ${activeRequest.startingPrice}`}
+                      value={offerData.offeredPrice}
+                      onChange={handleOfferChange}
+                      required
+                    />
+                  </Form.Group>
+                </Col>
+                <Col md={6}>
+                  <Form.Group className="mb-3">
+                    <Form.Label className="fw-semibold">Estimated Delivery / Available Date</Form.Label>
+                    <Form.Control
+                      type="date"
+                      name="deliveryDate"
+                      value={offerData.deliveryDate}
+                      onChange={handleOfferChange}
+                      required
+                    />
+                  </Form.Group>
+                </Col>
+              </Row>
+
+              <Form.Group className="mb-3">
+                <Form.Label className="fw-semibold">Note / Supply Remarks</Form.Label>
+                <Form.Control
+                  as="textarea"
+                  rows={2}
+                  name="remarks"
+                  placeholder="Provide details about stock quality, delivery conditions, etc."
+                  value={offerData.remarks}
+                  onChange={handleOfferChange}
+                />
+              </Form.Group>
+
+              <div className="d-flex justify-content-end gap-2 mt-4">
+                <Button variant="secondary" onClick={handleCloseModal}>
+                  Close
+                </Button>
+                <Button variant="success" type="submit" className="fw-bold px-4">
+                  Send Offer
+                </Button>
+              </div>
+            </Form>
+          </Modal.Body>
+        </Modal>
+      )}
     </Container>
   );
 };
