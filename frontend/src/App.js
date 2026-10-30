@@ -2,13 +2,13 @@ import React, { useState } from 'react';
 import AddRequest from './components/RequestManagement/AddRequest';
 import RequestList from './components/RequestManagement/RequestList';
 import MyRequests from './components/RequestManagement/MyRequests';
-import AcceptedDeals from './components/RequestManagement/AcceptedDeals';
-import { Button, Container, Alert, Badge } from 'react-bootstrap';
+import RequestDetail from './components/RequestManagement/RequestDetail';
+import { Button, Container } from 'react-bootstrap';
 
 const initialRequests = [
   {
     id: 'REQ-101',
-    requestType: 'Buyer Demand',
+    requestType: 'Buyer',
     title: 'Need 100kg Big Onions',
     category: 'Vegetables',
     location: 'Dambulla',
@@ -19,13 +19,12 @@ const initialRequests = [
     contact: '+94 77 123 4567',
     status: 'Pending Match',
     offers: [
-      { id: 'OFF-1', sender: 'Dambulla Agro Farm', offeredPrice: 340, deliveryDate: '2026-10-23', remarks: 'Grade A onions available in 25kg bags.' },
-      { id: 'OFF-2', sender: 'Matale Rural Supplier', offeredPrice: 345, deliveryDate: '2026-10-22', remarks: 'Freshly dried, immediate pickup ready.' }
+      { sender: 'Dambulla Agro Farm', offeredPrice: 340, quantityOffered: 100, deliveryDate: '2026-10-23', remarks: 'Grade A onions available in 25kg bags.' }
     ]
   },
   {
     id: 'REQ-102',
-    requestType: 'Seller Supply',
+    requestType: 'Seller',
     title: '500kg Organic Cavendish Bananas Available',
     category: 'Fruits',
     location: 'Embilipitiya',
@@ -35,91 +34,42 @@ const initialRequests = [
     buyerName: 'Nimal Farms (Seller)',
     contact: '+94 71 987 6543',
     status: 'Pending Match',
-    offers: [
-      { id: 'OFF-3', sender: 'Colombo Fruit Chain', offeredPrice: 175, deliveryDate: '2026-10-21', remarks: 'Can arrange own refrigerated transport.' }
-    ]
-  },
-  {
-    id: 'REQ-103',
-    requestType: 'Buyer Demand',
-    title: '100kg Pumpkin Needed',
-    category: 'Vegetables',
-    location: 'Matara',
-    startingPrice: 150,
-    biddingEndTime: '2026-10-20 15:30',
-    description: 'Urgently looking for fresh local pumpkins around Matara area.',
-    buyerName: 'Kamal Stores (Buyer)',
-    contact: '+94 70 456 7890',
-    status: 'Pending Match',
     offers: []
   }
 ];
 
 function App() {
-  const [view, setView] = useState('list'); // Default view set to Request & Supply Hub
+  const [view, setView] = useState('my-requests');
   const [requests, setRequests] = useState(initialRequests);
   const [acceptedDeals, setAcceptedDeals] = useState([]);
-  const [matchAlert, setMatchAlert] = useState(null);
+  const [selectedRequest, setSelectedRequest] = useState(null);
 
   const handleAddRequest = (newReq) => {
     newReq.offers = [];
-    const oppositeType = newReq.requestType === 'Buyer Demand' ? 'Seller Supply' : 'Buyer Demand';
-
-    const matchedItems = requests.filter(req => 
-      req.requestType === oppositeType &&
-      req.category.toLowerCase() === newReq.category.toLowerCase() &&
-      req.location.toLowerCase() === newReq.location.toLowerCase()
-    );
-
-    if (matchedItems.length > 0) {
-      const bestMatch = matchedItems[0];
-      newReq.status = `Matched ✅ (with ${bestMatch.id})`;
-
-      const updatedList = requests.map(req => 
-        req.id === bestMatch.id 
-          ? { ...req, status: `Matched ✅ (with ${newReq.id})` } 
-          : req
-      );
-
-      setRequests([newReq, ...updatedList]);
-      setMatchAlert({
-        newPost: newReq,
-        matchedPost: bestMatch
-      });
-    } else {
-      setRequests([newReq, ...requests]);
-      setMatchAlert(null);
-      alert("Post published! Status set to 'Pending Match'.");
-    }
-
+    setRequests([newReq, ...requests]);
     setView('my-requests');
+    alert("Post published successfully!");
   };
 
   const handleSubmitOffer = (reqId, newOffer) => {
     setRequests(requests.map(req => {
       if (req.id === reqId) {
-        return {
-          ...req,
-          offers: [...(req.offers || []), newOffer]
-        };
+        return { ...req, offers: [...(req.offers || []), newOffer] };
       }
       return req;
     }));
   };
 
   const handleAcceptOffer = (reqId, acceptedOffer) => {
-    const targetReq = requests.find(r => r.id === reqId);
+    const newDeal = {
+      ...acceptedOffer,
+      requestId: reqId,
+      requestTitle: requests.find(r => r.id === reqId)?.title || 'Crop Request'
+    };
 
-    setAcceptedDeals([
-      ...acceptedDeals,
-      {
-        ...acceptedOffer,
-        requestId: reqId,
-        requestTitle: targetReq ? targetReq.title : 'Crop Request'
-      }
-    ]);
+    setAcceptedDeals([...acceptedDeals, newDeal]);
 
-    setRequests(requests.map(req => {
+    const updatedRequests = requests.map(req => {
       if (req.id === reqId) {
         return {
           ...req,
@@ -128,85 +78,112 @@ function App() {
         };
       }
       return req;
-    }));
+    });
 
-    alert(`🎉 Offer Accepted! Moved to 'Accepted Deals' page.`);
+    setRequests(updatedRequests);
+
+    const target = updatedRequests.find(r => r.id === reqId);
+    if (target) {
+      setSelectedRequest(target);
+    }
+
+    alert(`🎉 Offer Accepted! Moved to Accepted Deals tab inside this request.`);
+  };
+
+  const handleDeclineOffer = (reqId, declinedOffer) => {
+    const updatedRequests = requests.map(req => {
+      if (req.id === reqId) {
+        return {
+          ...req,
+          offers: req.offers.filter(o => o !== declinedOffer)
+        };
+      }
+      return req;
+    });
+
+    setRequests(updatedRequests);
+
+    const target = updatedRequests.find(r => r.id === reqId);
+    if (target) {
+      setSelectedRequest(target);
+    }
+
+    alert(`❌ Offer declined and removed successfully.`);
   };
 
   const handleDeleteRequest = (id) => {
     setRequests(requests.filter(req => req.id !== id));
+    setSelectedRequest(null);
   };
+  // Update Post Handler
+const handleUpdatePost = (reqId, updatedData) => {
+  const updatedRequests = requests.map(req => {
+    if (req.id === reqId) {
+      return { ...req, ...updatedData };
+    }
+    return req;
+  });
 
-  const handleUpdateRequest = (updatedReq) => {
-    setRequests(requests.map(req => req.id === updatedReq.id ? updatedReq : req));
-  };
-
+  setRequests(updatedRequests);
+  const target = updatedRequests.find(r => r.id === reqId);
+  if (target) {
+    setSelectedRequest(target);
+  }
+};
   return (
     <div className="App bg-light min-vh-100 py-3">
       <Container className="mb-3">
-        {/* Navigation Bar - Request & Supply Hub is now first */}
         <div className="d-flex gap-2 mb-3">
           <Button 
-            variant={view === 'list' ? 'success' : 'outline-success'} 
-            onClick={() => setView('list')}
-          >
-            Request & Supply Hub
-          </Button>
-          <Button 
-            variant={view === 'my-requests' ? 'success' : 'outline-success'} 
-            onClick={() => setView('my-requests')}
+            variant={view === 'my-requests' && !selectedRequest ? 'success' : 'outline-success'} 
+            onClick={() => { setSelectedRequest(null); setView('my-requests'); }}
           >
             My Requests & Matches
           </Button>
           <Button 
-            variant={view === 'accepted-deals' ? 'success' : 'outline-success'} 
-            onClick={() => setView('accepted-deals')}
+            variant={view === 'list' ? 'success' : 'outline-success'} 
+            onClick={() => { setSelectedRequest(null); setView('list'); }}
           >
-            🤝 Accepted Deals <Badge bg="light" text="dark">{acceptedDeals.length}</Badge>
+            Request & Supply Hub
           </Button>
           <Button 
             variant={view === 'add' ? 'success' : 'outline-success'} 
-            onClick={() => setView('add')}
+            onClick={() => { setSelectedRequest(null); setView('add'); }}
           >
-            + Post Demand / Supply
+            + Add Post
           </Button>
         </div>
-
-        {matchAlert && (
-          <Alert variant="success" onClose={() => setMatchAlert(null)} dismissible className="shadow-sm border-success">
-            <Alert.Heading className="fw-bold">🎉 Automated Match Found & Email Alerts Sent!</Alert.Heading>
-            <p className="mb-1">
-              Your new <strong>{matchAlert.newPost.requestType}</strong> (<em>{matchAlert.newPost.title}</em>) 
-              automatically matched with existing <strong>{matchAlert.matchedPost.requestType}</strong> (ID: <strong>{matchAlert.matchedPost.id}</strong>).
-            </p>
-          </Alert>
-        )}
       </Container>
 
-      {view === 'list' && (
-        <RequestList 
-          requests={requests} 
-          onNavigateToAdd={() => setView('add')} 
-          onSubmitOffer={handleSubmitOffer}
-        />
-      )}
-      {view === 'my-requests' && (
-        <MyRequests 
-          requests={requests} 
-          onDeleteRequest={handleDeleteRequest} 
-          onUpdateRequest={handleUpdateRequest} 
+      {selectedRequest ? (
+        <RequestDetail 
+          request={selectedRequest} 
+          allRequests={requests} 
+          acceptedDeals={acceptedDeals}
+          onBack={() => setSelectedRequest(null)} 
           onAcceptOffer={handleAcceptOffer}
+          onDeclineOffer={handleDeclineOffer}
         />
-      )}
-      {view === 'accepted-deals' && (
-        <AcceptedDeals 
-          acceptedDeals={acceptedDeals} 
-        />
-      )}
-      {view === 'add' && (
-        <AddRequest 
-          onAddRequest={handleAddRequest} 
-        />
+      ) : (
+        <>
+          {view === 'my-requests' && (
+            <MyRequests 
+              requests={requests} 
+              onDeleteRequest={handleDeleteRequest} 
+              onSelectRequest={(req) => setSelectedRequest(req)}
+            />
+          )}
+          {view === 'list' && (
+            <RequestList 
+              requests={requests} 
+              onNavigateToAdd={() => setView('add')} 
+              onSubmitOffer={handleSubmitOffer}
+            />
+          )}
+          {view === 'add' && (
+            <AddRequest onAddRequest={handleAddRequest} />
+          )}
+        </>
       )}
     </div>
   );
