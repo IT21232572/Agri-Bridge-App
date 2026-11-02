@@ -118,6 +118,16 @@ const RequestList = ({ requests, onNavigateToAdd, onDeleteRequest, refreshReques
             <Col md={4} key={req.id || req._id}>
               <Card className={`h-100 shadow-sm border-0 ${req.status && req.status.includes('Matched') ? 'border-start border-success border-4' : ''}`}>
                 <Card.Body className="d-flex flex-column">
+                  {req.image && (
+                    <div className="mb-3 text-center">
+                      <img 
+                        src={req.image} 
+                        alt={req.title} 
+                        className="rounded w-100 shadow-sm" 
+                        style={{ height: '140px', objectFit: 'cover' }} 
+                      />
+                    </div>
+                  )}
                   <div className="d-flex justify-content-between align-items-center mb-2">
                     <Badge bg={req.requestType === 'Buyer' ? 'primary' : 'success'} className="px-2 py-1">
                       {req.requestType === 'Buyer' ? '🛒 Buyer' : '🚜 Seller'}
@@ -127,6 +137,7 @@ const RequestList = ({ requests, onNavigateToAdd, onDeleteRequest, refreshReques
 
                   <div className="d-flex justify-content-between align-items-center mb-2">
                     <small className="text-muted fw-semibold">📍 {req.location}</small>
+                    <Badge bg="warning" text="dark">📦 {req.quantity || 0} Kg</Badge>
                     {req.status && req.status.includes('Matched') && (
                       <Badge bg="warning" text="dark">⚡ Auto-Matched</Badge>
                     )}
@@ -178,6 +189,7 @@ const RequestList = ({ requests, onNavigateToAdd, onDeleteRequest, refreshReques
       </Row>
 
       {/* Details & Counter Offer Modal */}
+      {/* Details & Counter Offer Modal */}
       {activeRequest && (
         <Modal show={showModal} onHide={handleCloseModal} size="lg" centered>
           <Modal.Header closeButton className="bg-success text-white">
@@ -186,27 +198,52 @@ const RequestList = ({ requests, onNavigateToAdd, onDeleteRequest, refreshReques
             </Modal.Title>
           </Modal.Header>
           <Modal.Body className="p-4">
-            <Row className="mb-3">
-              <Col md={8}>
+            {/* --- CHANGE THIS ROW TO 3 COLUMNS --- */}
+            <Row className="mb-3 align-items-center">
+              {/* Left Column: Title & Description */}
+              {/* Left Column: Title & Description */}
+              <Col md={5}>
                 <Badge bg={activeRequest.requestType === 'Buyer' ? 'primary' : 'success'} className="mb-2 me-2">
                   {activeRequest.requestType}
                 </Badge>
                 <Badge bg="secondary" className="mb-2">{activeRequest.category}</Badge>
                 <h4 className="fw-bold text-dark">{activeRequest.title}</h4>
-                <span className="text-muted small">📍 Location: {activeRequest.location}</span>
-                <p className="mt-3 text-secondary">{activeRequest.description}</p>
+                <div className="d-flex align-items-center gap-2 mb-2">
+                  <span className="text-muted small">📍 Location: {activeRequest.location}</span>
+                  <Badge bg="warning" text="dark">📦 {activeRequest.quantity || 0} Kg</Badge>
+                </div>
+                <p className="mt-2 text-secondary small">{activeRequest.description}</p>
               </Col>
+
+              {/* Middle Column: Product Image Thumbnail */}
+              <Col md={3} className="text-center px-1">
+                {activeRequest.image ? (
+                  <img 
+                    src={activeRequest.image} 
+                    alt={activeRequest.title} 
+                    className="rounded shadow-sm border" 
+                    style={{ width: '100px', height: '100px', objectFit: 'cover' }} 
+                  />
+                ) : (
+                  <div className="text-muted small border rounded p-2 bg-light" style={{ height: '90px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    📷 No Image
+                  </div>
+                )}
+              </Col>
+
+              {/* Right Column: Price & Contact Info */}
               <Col md={4} className="border-start">
                 <div className="bg-light p-3 rounded">
                   <span className="text-muted small d-block">Listed Price:</span>
                   <h4 className="text-success fw-bold">LKR {activeRequest.startingPrice}</h4>
-                  <hr />
+                  <hr className="my-2" />
                   <span className="text-muted small d-block">Posted By:</span>
-                  <strong className="d-block text-dark">{activeRequest.buyerName || 'Farmer / Buyer'}</strong>
-                  <small className="text-muted">{activeRequest.contact || '+94 77 000 0000'}</small>
+                  <strong className="d-block text-dark">{activeRequest.buyerName || 'My Profile'}</strong>
+                  <small className="text-muted">{activeRequest.contact || '+94 77 123 4567'}</small>
                 </div>
               </Col>
             </Row>
+            {/* ------------------------------------- */}
 
             <hr />
 

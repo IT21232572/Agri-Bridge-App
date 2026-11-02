@@ -104,6 +104,17 @@ const RequestDetail = ({ request, allRequests, acceptedDeals, onBack, onAcceptOf
       {/* Request Header Card */}
       <Card className="shadow-sm border-0 mb-4 bg-light">
         <Card.Body className="p-4">
+          {request.image && (
+            <div className="mb-3 text-center">
+              <img 
+                src={request.image} 
+                alt={request.title} 
+                className="rounded shadow-sm border" 
+                style={{ maxHeight: '220px', objectFit: 'contain' }} 
+              />
+            </div>
+          )}
+
           <div className="d-flex justify-content-between align-items-center mb-2">
             <div>
               <Badge bg={request.requestType === 'Buyer' ? 'primary' : 'success'} className="me-2 px-2 py-1">
@@ -119,19 +130,25 @@ const RequestDetail = ({ request, allRequests, acceptedDeals, onBack, onAcceptOf
           <p className="text-secondary">{request.description}</p>
 
           <Row className="mt-3 g-3">
-            <Col md={4}>
+            <Col md={3}>
               <div className="bg-white p-3 rounded border">
                 <span className="text-muted small d-block">Target / Asking Price:</span>
                 <h4 className="text-success fw-bold mb-0">LKR {request.startingPrice}</h4>
               </div>
             </Col>
-            <Col md={4}>
+            <Col md={3}>
+              <div className="bg-white p-3 rounded border">
+                <span className="text-muted small d-block">Quantity Required/Available:</span>
+                <h5 className="text-dark fw-bold mb-0">📦 {request.quantity || 0} Kg</h5>
+              </div>
+            </Col>
+            <Col md={3}>
               <div className="bg-white p-3 rounded border">
                 <span className="text-muted small d-block">Current Status:</span>
                 <h5 className="text-dark fw-bold mb-0">{request.status}</h5>
               </div>
             </Col>
-            <Col md={4}>
+            <Col md={3}>
               <div className="bg-white p-3 rounded border">
                 <span className="text-muted small d-block">Contact Person:</span>
                 <strong className="text-dark">{request.buyerName || 'My Profile'}</strong>
