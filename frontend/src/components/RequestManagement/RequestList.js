@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Container, Row, Col, Card, Button, Form, Badge, InputGroup, Modal } from 'react-bootstrap';
 import { addOfferToRequest } from '../../services/requestService';
 
-const RequestList = ({ requests, onNavigateToAdd, onDeleteRequest, refreshRequests }) => {
+const RequestList = ({ requests, onNavigateToAdd, refreshRequests, showToast }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedType, setSelectedType] = useState('All');
@@ -51,13 +51,12 @@ const RequestList = ({ requests, onNavigateToAdd, onDeleteRequest, refreshReques
     };
 
     try {
-      // Call backend API to save offer inside MongoDB
       await addOfferToRequest(activeRequest.id, newOffer);
-      alert(`Offer of LKR ${offerData.offeredPrice} for ${offerData.quantityOffered}kg submitted successfully!`);
+      if (showToast) showToast(`Offer of LKR ${offerData.offeredPrice} submitted successfully! 🚀`, 'success');
       handleCloseModal();
-      if (refreshRequests) refreshRequests(); // Refresh parent state from DB
+      if (refreshRequests) refreshRequests();
     } catch (error) {
-      alert('Failed to submit offer to server.');
+      if (showToast) showToast('Failed to submit offer to server.', 'danger');
     }
   };
 
@@ -161,20 +160,14 @@ const RequestList = ({ requests, onNavigateToAdd, onDeleteRequest, refreshReques
                     </div>
                   </div>
 
-                  <div className="d-flex gap-2">
+                  {/* Public Marketplace Card: Only View Details (No Delete Icon) */}
+                  <div>
                     <Button 
                       variant="outline-success" 
-                      className="w-75 fw-bold"
+                      className="w-100 fw-bold"
                       onClick={() => handleOpenModal(req)}
                     >
                       View Details & Respond
-                    </Button>
-                    <Button 
-                      variant="outline-danger" 
-                      className="w-25"
-                      onClick={() => onDeleteRequest(req.id)}
-                    >
-                      🗑️
                     </Button>
                   </div>
                 </Card.Body>
@@ -189,7 +182,6 @@ const RequestList = ({ requests, onNavigateToAdd, onDeleteRequest, refreshReques
       </Row>
 
       {/* Details & Counter Offer Modal */}
-      {/* Details & Counter Offer Modal */}
       {activeRequest && (
         <Modal show={showModal} onHide={handleCloseModal} size="lg" centered>
           <Modal.Header closeButton className="bg-success text-white">
@@ -198,10 +190,7 @@ const RequestList = ({ requests, onNavigateToAdd, onDeleteRequest, refreshReques
             </Modal.Title>
           </Modal.Header>
           <Modal.Body className="p-4">
-            {/* --- CHANGE THIS ROW TO 3 COLUMNS --- */}
             <Row className="mb-3 align-items-center">
-              {/* Left Column: Title & Description */}
-              {/* Left Column: Title & Description */}
               <Col md={5}>
                 <Badge bg={activeRequest.requestType === 'Buyer' ? 'primary' : 'success'} className="mb-2 me-2">
                   {activeRequest.requestType}
@@ -215,7 +204,6 @@ const RequestList = ({ requests, onNavigateToAdd, onDeleteRequest, refreshReques
                 <p className="mt-2 text-secondary small">{activeRequest.description}</p>
               </Col>
 
-              {/* Middle Column: Product Image Thumbnail */}
               <Col md={3} className="text-center px-1">
                 {activeRequest.image ? (
                   <img 
@@ -231,7 +219,6 @@ const RequestList = ({ requests, onNavigateToAdd, onDeleteRequest, refreshReques
                 )}
               </Col>
 
-              {/* Right Column: Price & Contact Info */}
               <Col md={4} className="border-start">
                 <div className="bg-light p-3 rounded">
                   <span className="text-muted small d-block">Listed Price:</span>
@@ -243,7 +230,6 @@ const RequestList = ({ requests, onNavigateToAdd, onDeleteRequest, refreshReques
                 </div>
               </Col>
             </Row>
-            {/* ------------------------------------- */}
 
             <hr />
 

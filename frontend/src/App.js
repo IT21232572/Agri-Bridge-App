@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Link } from 'react-router-dom';
-import { Container, Button } from 'react-bootstrap';
+import { Container, Button, Toast, ToastContainer } from 'react-bootstrap';
 import AddRequest from './components/RequestManagement/AddRequest';
 import RequestList from './components/RequestManagement/RequestList';
 import MyRequests from './components/RequestManagement/MyRequests';
@@ -18,6 +18,13 @@ function App() {
   const [acceptedDeals, setAcceptedDeals] = useState([]);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Toast state notification setup
+  const [toastInfo, setToastInfo] = useState({ show: false, message: '', bg: 'success' });
+
+  const showToast = (message, bg = 'success') => {
+    setToastInfo({ show: true, message, bg });
+  };
 
   // Fetch requests from MongoDB Atlas
   const fetchRequests = async () => {
@@ -40,9 +47,9 @@ function App() {
     try {
       await createRequest(newReq);
       await fetchRequests(); // Force refresh state from MongoDB Atlas
-      alert('Post published successfully to MongoDB Atlas! 🚀');
+      showToast('Post published successfully to MongoDB Atlas! 🚀', 'success');
     } catch (error) {
-      alert('Failed to save post to backend.');
+      showToast('Failed to save post to backend.', 'danger');
       throw error;
     }
   };
@@ -52,8 +59,9 @@ function App() {
       await deleteRequest(id);
       await fetchRequests();
       setSelectedRequest(null);
+      showToast('Request deleted successfully.', 'success');
     } catch (error) {
-      alert('Failed to delete request');
+      showToast('Failed to delete request', 'danger');
     }
   };
 
@@ -62,9 +70,9 @@ function App() {
       const updatedDoc = await updateRequest(id, updatedData);
       await fetchRequests();
       if (selectedRequest) setSelectedRequest(updatedDoc);
-      alert('Post updated successfully!');
+      showToast('Post updated successfully!', 'success');
     } catch (error) {
-      alert('Failed to update post');
+      showToast('Failed to update post', 'danger');
     }
   };
 
@@ -89,9 +97,9 @@ function App() {
         await fetchRequests();
         setSelectedRequest(updatedDoc);
       }
-      alert('🎉 Offer Accepted successfully!');
+      showToast('🎉 Offer Accepted successfully!', 'success');
     } catch (error) {
-      alert('Failed to accept offer');
+      showToast('Failed to accept offer', 'danger');
     }
   };
 
@@ -105,9 +113,9 @@ function App() {
         await fetchRequests();
         setSelectedRequest(updatedDoc);
       }
-      alert('❌ Offer declined.');
+      showToast('❌ Offer declined.', 'warning');
     } catch (error) {
-      alert('Failed to decline offer');
+      showToast('Failed to decline offer', 'danger');
     }
   };
 
@@ -142,6 +150,7 @@ function App() {
             onDeclineOffer={handleDeclineOffer}
             onUpdatePost={handleUpdatePost}
             onDeletePost={handleDeleteRequest}
+            showToast={showToast}
           />
         ) : (
           <Routes>
@@ -162,6 +171,7 @@ function App() {
                   requests={requests} 
                   refreshRequests={fetchRequests}
                   onDeleteRequest={handleDeleteRequest}
+                  showToast={showToast}
                 />
               } 
             />
@@ -171,6 +181,21 @@ function App() {
             />
           </Routes>
         )}
+
+        {/* Floating Toast Notification Container */}
+        <ToastContainer position="bottom-end" className="p-3" style={{ zIndex: 9999 }}>
+          <Toast 
+            onClose={() => setToastInfo({ ...toastInfo, show: false })} 
+            show={toastInfo.show} 
+            delay={3500} 
+            autohide
+            bg={toastInfo.bg}
+          >
+            <Toast.Body className="text-white fw-bold">
+              {toastInfo.message}
+            </Toast.Body>
+          </Toast>
+        </ToastContainer>
       </div>
     </Router>
   );

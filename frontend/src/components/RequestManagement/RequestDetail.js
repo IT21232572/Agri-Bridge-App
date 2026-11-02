@@ -1,19 +1,31 @@
 import React, { useState } from 'react';
 import { Container, Card, Badge, Button, Tabs, Tab, ListGroup, Row, Col, Table, Modal, Form } from 'react-bootstrap';
 
-const RequestDetail = ({ request, allRequests, acceptedDeals, onBack, onAcceptOffer, onDeclineOffer, onUpdatePost, onDeletePost }) => {
+const SRI_LANKA_DISTRICTS = [
+  'Ampara', 'Anuradhapura', 'Badulla', 'Batticaloa', 'Colombo', 
+  'Galle', 'Gampaha', 'Hambantota', 'Jaffna', 'Kalutara', 
+  'Kandy', 'Kegalle', 'Kilinochchi', 'Kurunegala', 'Mannar', 
+  'Matale', 'Matara', 'Monaragala', 'Mullaitivu', 'Nuwara Eliya', 
+  'Polonnaruwa', 'Puttalam', 'Ratnapura', 'Trincomalee', 'Vavuniya'
+];
+
+const RequestDetail = ({ request, allRequests, acceptedDeals, onBack, onAcceptOffer, onDeclineOffer, onUpdatePost, onDeletePost, showToast }) => {
   const [key, setKey] = useState('matched');
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false); // State for custom delete confirmation modal
   
-  // Edit form state
   const [editFormData, setEditFormData] = useState({
-    title: request.title,
-    category: request.category,
-    location: request.location,
-    startingPrice: request.startingPrice,
-    biddingEndTime: request.biddingEndTime,
-    description: request.description
+    title: request.title || '',
+    category: request.category || 'Vegetables',
+    location: request.location || 'Colombo',
+    quantity: request.quantity || '',
+    startingPrice: request.startingPrice || '',
+    biddingEndTime: request.biddingEndTime || '',
+    description: request.description || '',
+    image: request.image || ''
   });
+
+  const [imagePreview, setImagePreview] = useState(request.image || null);
 
   const oppositeType = request.requestType === 'Buyer' ? 'Seller' : 'Buyer';
   const matchedRequestsList = allRequests.filter(req => 
@@ -25,10 +37,8 @@ const RequestDetail = ({ request, allRequests, acceptedDeals, onBack, onAcceptOf
 
   const requestAcceptedDeals = acceptedDeals.filter(deal => deal.requestId === request.id);
 
-  // Smart Best Offer Calculation Logic (Weighted Scoring)
   const getBestOfferId = () => {
     if (!request.offers || request.offers.length === 0) return null;
-
     let bestId = null;
     let highestScore = -1;
 
@@ -36,21 +46,17 @@ const RequestDetail = ({ request, allRequests, acceptedDeals, onBack, onAcceptOf
       let score = 0;
       const price = parseFloat(offer.offeredPrice);
 
-      // Price competitiveness score
       if (request.requestType === 'Seller') {
         score += (price * 0.4); 
       } else {
         score += ((1000 / price) * 40); 
       }
 
-      // Quantity fulfillment score
       const targetQty = parseFloat(request.quantity || 100);
       const offeredQty = parseFloat(offer.quantityOffered || 100);
       const qtyDifference = Math.abs(targetQty - offeredQty);
       const qtyScore = Math.max(0, 30 - (qtyDifference * 0.1));
       score += qtyScore;
-
-      // Delivery urgency base score
       score += 30;
 
       if (score > highestScore) {
@@ -69,11 +75,27 @@ const RequestDetail = ({ request, allRequests, acceptedDeals, onBack, onAcceptOf
     setEditFormData({ ...editFormData, [name]: value });
   };
 
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+        setEditFormData({ ...editFormData, image: reader.result });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleEditSubmit = (e) => {
     e.preventDefault();
-    onUpdatePost(request.id, editFormData);
+    onUpdatePost(request.id, {
+      ...editFormData,
+      quantity: Number(editFormData.quantity),
+      startingPrice: Number(editFormData.startingPrice)
+    });
     setShowEditModal(false);
-    alert("Post updated successfully! ✏️");
+    if (showToast) showToast("Post updated successfully! ✏️", "success");
   };
 
   return (
@@ -90,18 +112,13 @@ const RequestDetail = ({ request, allRequests, acceptedDeals, onBack, onAcceptOf
             variant="outline-danger" 
             size="sm" 
             className="fw-bold" 
-            onClick={() => {
-              if (window.confirm("Are you sure you want to delete this post?")) {
-                onDeletePost(request.id);
-              }
-            }}
+            onClick={() => setShowDeleteModal(true)}
           >
             🗑️ Delete Post
           </Button>
         </div>
       </div>
 
-      {/* Request Header Card */}
       <Card className="shadow-sm border-0 mb-4 bg-light">
         <Card.Body className="p-4">
           {request.image && (
@@ -161,12 +178,7 @@ const RequestDetail = ({ request, allRequests, acceptedDeals, onBack, onAcceptOf
       {/* Tabs Card */}
       <Card className="shadow-sm border-0">
         <Card.Body className="p-4">
-          <Tabs
-            id="request-details-tabs"
-            activeKey={key}
-            onSelect={(k) => setKey(k)}
-            className="mb-4"
-          >
+          <Tabs id="request-details-tabs" activeKey={key} onSelect={(k) => setKey(k)} className="mb-4">
             <Tab eventKey="matched" title={`⚡ Matched Requests (${matchedRequestsList.length})`}>
               <div className="py-2">
                 <p className="text-muted small mb-3">
@@ -234,7 +246,10 @@ const RequestDetail = ({ request, allRequests, acceptedDeals, onBack, onAcceptOf
                               variant="success" 
                               size="sm" 
                               className="fw-bold px-3"
-                              onClick={() => onAcceptOffer(request.id, offer)}
+                              onClick={() => {
+                                onAcceptOffer(request.id, offer);
+                                if (showToast) showToast("Deal accepted successfully! 🎉", "success");
+                              }}
                             >
                               Accept Deal ✅
                             </Button>
@@ -245,6 +260,7 @@ const RequestDetail = ({ request, allRequests, acceptedDeals, onBack, onAcceptOf
                               onClick={() => {
                                 if (window.confirm("Are you sure you want to decline this offer?")) {
                                   onDeclineOffer(request.id, offer);
+                                  if (showToast) showToast("Offer declined.", "warning");
                                 }
                               }}
                             >
@@ -294,7 +310,7 @@ const RequestDetail = ({ request, allRequests, acceptedDeals, onBack, onAcceptOf
                               <Badge bg="success">Confirmed & Processing 🚚</Badge>
                             </td>
                             <td className="text-center">
-                              <Button variant="outline-success" size="sm" onClick={() => alert(`Proceeding to logistics module.`)}>
+                              <Button variant="outline-success" size="sm" onClick={() => showToast && showToast("Proceeding to logistics module.", "info")}>
                                 View Details
                               </Button>
                             </td>
@@ -324,7 +340,7 @@ const RequestDetail = ({ request, allRequests, acceptedDeals, onBack, onAcceptOf
             <Row className="mb-3">
               <Col md={12}>
                 <Form.Group>
-                  <Form.Label className="fw-semibold">Title</Form.Label>
+                  <Form.Label className="fw-semibold">Title / Product Name</Form.Label>
                   <Form.Control
                     type="text"
                     name="title"
@@ -353,24 +369,41 @@ const RequestDetail = ({ request, allRequests, acceptedDeals, onBack, onAcceptOf
                   </Form.Select>
                 </Form.Group>
               </Col>
+              
               <Col md={6}>
                 <Form.Group>
-                  <Form.Label className="fw-semibold">Location</Form.Label>
-                  <Form.Control
-                    type="text"
+                  <Form.Label className="fw-semibold">District / Location</Form.Label>
+                  <Form.Select
                     name="location"
                     value={editFormData.location}
                     onChange={handleEditChange}
                     required
-                  />
+                  >
+                    {SRI_LANKA_DISTRICTS.map((district, idx) => (
+                      <option key={idx} value={district}>{district}</option>
+                    ))}
+                  </Form.Select>
                 </Form.Group>
               </Col>
             </Row>
 
             <Row className="mb-3">
-              <Col md={6}>
+              <Col md={4}>
                 <Form.Group>
-                  <Form.Label className="fw-semibold">Price (LKR)</Form.Label>
+                  <Form.Label className="fw-semibold">Quantity (Kg / Units)</Form.Label>
+                  <Form.Control
+                    type="number"
+                    name="quantity"
+                    value={editFormData.quantity}
+                    onChange={handleEditChange}
+                    required
+                  />
+                </Form.Group>
+              </Col>
+
+              <Col md={4}>
+                <Form.Group>
+                  <Form.Label className="fw-semibold">Price per Unit (LKR)</Form.Label>
                   <Form.Control
                     type="number"
                     name="startingPrice"
@@ -380,11 +413,12 @@ const RequestDetail = ({ request, allRequests, acceptedDeals, onBack, onAcceptOf
                   />
                 </Form.Group>
               </Col>
-              <Col md={6}>
+
+              <Col md={4}>
                 <Form.Group>
                   <Form.Label className="fw-semibold">Valid Until</Form.Label>
                   <Form.Control
-                    type="text"
+                    type="date"
                     name="biddingEndTime"
                     value={editFormData.biddingEndTime}
                     onChange={handleEditChange}
@@ -393,6 +427,31 @@ const RequestDetail = ({ request, allRequests, acceptedDeals, onBack, onAcceptOf
                 </Form.Group>
               </Col>
             </Row>
+
+            <Row className="mb-3">
+              <Col md={12}>
+                <Form.Group>
+                  <Form.Label className="fw-semibold">Update Product Image 📸</Form.Label>
+                  <Form.Control
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageChange}
+                  />
+                </Form.Group>
+              </Col>
+            </Row>
+
+            {imagePreview && (
+              <div className="mb-3 text-center bg-light p-3 rounded">
+                <span className="d-block text-muted small mb-2">Image Preview:</span>
+                <img 
+                  src={imagePreview} 
+                  alt="Crop preview" 
+                  style={{ maxHeight: '150px', objectFit: 'contain' }} 
+                  className="rounded border shadow-sm"
+                />
+              </div>
+            )}
 
             <Form.Group className="mb-3">
               <Form.Label className="fw-semibold">Description</Form.Label>
@@ -416,6 +475,33 @@ const RequestDetail = ({ request, allRequests, acceptedDeals, onBack, onAcceptOf
             </div>
           </Form>
         </Modal.Body>
+      </Modal>
+
+      {/* Custom Delete Confirmation Modal */}
+      <Modal show={showDeleteModal} onHide={() => setShowDeleteModal(false)} centered>
+        <Modal.Header closeButton className="bg-danger text-white">
+          <Modal.Title>⚠️ Confirm Deletion</Modal.Title>
+        </Modal.Header>
+        <Modal.Body className="p-4">
+          <p className="text-secondary mb-0">
+            Are you sure you want to delete this post (<strong>{request.id}</strong>)? This action cannot be undone.
+          </p>
+        </Modal.Body>
+        <Modal.Footer className="bg-light">
+          <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
+            Cancel
+          </Button>
+          <Button 
+            variant="danger" 
+            className="fw-bold" 
+            onClick={() => {
+              setShowDeleteModal(false);
+              onDeletePost(request.id);
+            }}
+          >
+            Yes, Delete Post 🗑️
+          </Button>
+        </Modal.Footer>
       </Modal>
     </Container>
   );
