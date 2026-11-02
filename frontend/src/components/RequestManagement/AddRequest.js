@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Container, Card, Form, Button, Row, Col } from 'react-bootstrap';
+import { createRequest } from '../../services/requestService';
 
-const AddRequest = ({ onAddRequest }) => {
+const AddRequest = ({ onNavigateToList }) => {
   const [formData, setFormData] = useState({
-    requestType: 'Buyer', // Buyer or Seller
+    requestType: 'Buyer',
     title: '',
     category: 'Vegetables',
     location: '',
@@ -11,8 +12,7 @@ const AddRequest = ({ onAddRequest }) => {
     biddingEndTime: '',
     description: '',
     buyerName: 'My Profile',
-    contact: '+94 77 123 4567',
-    image: null
+    contact: '+94 77 123 4567'
   });
 
   const handleChange = (e) => {
@@ -20,29 +20,30 @@ const AddRequest = ({ onAddRequest }) => {
     setFormData({ ...formData, [name]: value });
   };
 
-  const handleImageChange = (e) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      // Create a temporary local URL for preview and storage
-      setFormData({ ...formData, image: URL.createObjectURL(file) });
-    }
-  };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const newReq = {
       ...formData,
       id: `REQ-${Math.floor(100 + Math.random() * 900)}`,
-      status: 'Pending Match'
+      startingPrice: Number(formData.startingPrice),
+      status: 'Pending Match',
+      offers: []
     };
-    onAddRequest(newReq);
+
+    try {
+      await createRequest(newReq);
+      alert('Post published successfully to MongoDB Atlas!');
+      if (onNavigateToList) onNavigateToList();
+    } catch (error) {
+      alert('Failed to save post to backend.');
+    }
   };
 
   return (
     <Container className="mt-4 mb-5">
       <Card className="shadow-sm border-0">
         <Card.Header as="h5" className="bg-success text-white py-3">
-          📄 Create New Post
+          📄 Create New Post (Connected to Database)
         </Card.Header>
         <Card.Body className="p-4">
           <Form onSubmit={handleSubmit}>
@@ -123,27 +124,11 @@ const AddRequest = ({ onAddRequest }) => {
                   <Form.Control
                     type="text"
                     name="biddingEndTime"
-                    placeholder="2026-10-25 18:00"
+                    placeholder="2026-11-25 18:00"
                     value={formData.biddingEndTime}
                     onChange={handleChange}
                     required
                   />
-                </Form.Group>
-              </Col>
-            </Row>
-
-            <Row className="mb-3">
-              <Col md={12}>
-                <Form.Group>
-                  <Form.Label className="fw-semibold">Upload Crop / Product Image</Form.Label>
-                  <Form.Control
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                  />
-                  <Form.Text className="text-muted">
-                    Upload a clear photo of your crop or requirement item.
-                  </Form.Text>
                 </Form.Group>
               </Col>
             </Row>
@@ -162,6 +147,9 @@ const AddRequest = ({ onAddRequest }) => {
             </Form.Group>
 
             <div className="d-flex justify-content-end gap-2 mt-4">
+              <Button variant="secondary" onClick={onNavigateToList}>
+                Cancel
+              </Button>
               <Button variant="success" type="submit" className="px-4 fw-bold">
                 Publish Post 🚀
               </Button>

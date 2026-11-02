@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { Container, Row, Col, Card, Button, Form, Badge, InputGroup, Modal } from 'react-bootstrap';
+import { addOfferToRequest } from '../../services/requestService';
 
-const RequestList = ({ requests, onNavigateToAdd, onSubmitOffer }) => {
+const RequestList = ({ requests, onNavigateToAdd, onDeleteRequest, refreshRequests }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedType, setSelectedType] = useState('All');
@@ -39,19 +40,25 @@ const RequestList = ({ requests, onNavigateToAdd, onSubmitOffer }) => {
     setOfferData(prev => ({ ...prev, [name]: value }));
   };
 
-  const handleOfferSubmit = (e) => {
+  const handleOfferSubmit = async (e) => {
     e.preventDefault();
     const newOffer = {
       sender: 'Current Logged In User',
-      offeredPrice: offerData.offeredPrice,
-      quantityOffered: offerData.quantityOffered,
+      offeredPrice: Number(offerData.offeredPrice),
+      quantityOffered: Number(offerData.quantityOffered),
       deliveryDate: offerData.deliveryDate,
       remarks: offerData.remarks
     };
 
-    onSubmitOffer(activeRequest.id, newOffer);
-    alert(`Offer of LKR ${offerData.offeredPrice} for ${offerData.quantityOffered}kg submitted successfully!`);
-    handleCloseModal();
+    try {
+      // Call backend API to save offer inside MongoDB
+      await addOfferToRequest(activeRequest.id, newOffer);
+      alert(`Offer of LKR ${offerData.offeredPrice} for ${offerData.quantityOffered}kg submitted successfully!`);
+      handleCloseModal();
+      if (refreshRequests) refreshRequests(); // Refresh parent state from DB
+    } catch (error) {
+      alert('Failed to submit offer to server.');
+    }
   };
 
   return (
@@ -108,8 +115,8 @@ const RequestList = ({ requests, onNavigateToAdd, onSubmitOffer }) => {
       <Row className="g-4">
         {filteredRequests.length > 0 ? (
           filteredRequests.map((req) => (
-            <Col md={4} key={req.id}>
-              <Card className={`h-100 shadow-sm border-0 ${req.status.includes('Matched') ? 'border-start border-success border-4' : ''}`}>
+            <Col md={4} key={req.id || req._id}>
+              <Card className={`h-100 shadow-sm border-0 ${req.status && req.status.includes('Matched') ? 'border-start border-success border-4' : ''}`}>
                 <Card.Body className="d-flex flex-column">
                   <div className="d-flex justify-content-between align-items-center mb-2">
                     <Badge bg={req.requestType === 'Buyer' ? 'primary' : 'success'} className="px-2 py-1">
@@ -120,7 +127,7 @@ const RequestList = ({ requests, onNavigateToAdd, onSubmitOffer }) => {
 
                   <div className="d-flex justify-content-between align-items-center mb-2">
                     <small className="text-muted fw-semibold">📍 {req.location}</small>
-                    {req.status.includes('Matched') && (
+                    {req.status && req.status.includes('Matched') && (
                       <Badge bg="warning" text="dark">⚡ Auto-Matched</Badge>
                     )}
                   </div>
@@ -143,13 +150,22 @@ const RequestList = ({ requests, onNavigateToAdd, onSubmitOffer }) => {
                     </div>
                   </div>
 
-                  <Button 
-                    variant="outline-success" 
-                    className="w-100 fw-bold"
-                    onClick={() => handleOpenModal(req)}
-                  >
-                    View Details & Respond
-                  </Button>
+                  <div className="d-flex gap-2">
+                    <Button 
+                      variant="outline-success" 
+                      className="w-75 fw-bold"
+                      onClick={() => handleOpenModal(req)}
+                    >
+                      View Details & Respond
+                    </Button>
+                    <Button 
+                      variant="outline-danger" 
+                      className="w-25"
+                      onClick={() => onDeleteRequest(req.id)}
+                    >
+                      🗑️
+                    </Button>
+                  </div>
                 </Card.Body>
               </Card>
             </Col>
