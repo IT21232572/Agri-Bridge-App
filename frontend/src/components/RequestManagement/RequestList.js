@@ -29,15 +29,17 @@ const RequestList = ({ requests, onNavigateToAdd, refreshRequests, showToast }) 
   return (
     <Container fluid className="px-0">
       {/* Scenic Banner Card */}
-      <Card className="border-0 shadow-sm mb-4 position-relative overflow-hidden" style={{ borderRadius: '12px' }}>
-        <div 
-          className="p-4 text-white d-flex flex-column justify-content-between"
-          style={{
-            background: 'url("/farm-banner.png")',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-          }}
-        >
+      {/* Scenic Banner Card */}
+      <Card 
+        className="border-0 shadow-sm mb-4 position-relative overflow-hidden" 
+        style={{ 
+          borderRadius: '12px',
+          background: 'url("/farm-banner.png")', // Moved background here
+          backgroundSize: 'cover',
+          backgroundPosition: 'center',
+        }}
+      >
+        <div className="p-4 text-white d-flex flex-column justify-content-between">
           <div className="d-flex justify-content-between align-items-start">
             <div style={{ color: '#0f3d24' }}>
               <span className="small fw-bold text-uppercase tracking-wider opacity-75">AGRI-BRIDGE</span>
@@ -56,7 +58,8 @@ const RequestList = ({ requests, onNavigateToAdd, refreshRequests, showToast }) 
         </div>
 
         {/* Filter Bar */}
-        <Card.Body className="bg-white p-3 border-top">
+        {/* Removed 'bg-white' and 'border-top'. Added a slight translucent glass effect for readability! */}
+        <Card.Body className="p-3" style={{ backgroundColor: 'rgba(255, 255, 255, 0.4)', backdropFilter: 'blur(5px)' }}>
           <Row className="g-3 align-items-center">
             <Col md={5}>
               <InputGroup>
