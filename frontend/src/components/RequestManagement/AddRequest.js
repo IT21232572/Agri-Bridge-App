@@ -86,6 +86,16 @@ const AddRequest = ({ onAddSuccess, showToast }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Explicit Frontend Validation
+    if (Number(formData.quantity) <= 0) {
+      if (showToast) showToast('Quantity must be greater than 0', 'danger');
+      return;
+    }
+    if (Number(formData.startingPrice) < 0) {
+      if (showToast) showToast('Price cannot be a negative number', 'danger');
+      return;
+    }
+    
     const finalProduct = formData.isCustomProduct ? formData.customProductName : formData.productName;
 
     const newReq = {
@@ -302,6 +312,7 @@ const AddRequest = ({ onAddSuccess, showToast }) => {
                     value={formData.quantity}
                     onChange={handleChange}
                     required
+                    min="1"
                     className="shadow-sm py-2"
                   />
                 </Form.Group>
@@ -318,6 +329,7 @@ const AddRequest = ({ onAddSuccess, showToast }) => {
                     value={formData.startingPrice}
                     onChange={handleChange}
                     required
+                    min="0"
                     className="shadow-sm py-2"
                   />
                 </Form.Group>

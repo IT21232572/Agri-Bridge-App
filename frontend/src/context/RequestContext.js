@@ -89,7 +89,8 @@ export const RequestProvider = ({ children }) => {
       await fetchRequests();
       showToast('Post published successfully', 'success');
     } catch (error) {
-      showToast('Failed to save post to backend.', 'danger');
+      const errorMessage = error.response?.data?.error || 'Failed to save post to backend.';
+      showToast(`Error: ${errorMessage}`, 'danger');
       throw error;
     }
   };
