@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { Container, Row, Col, Card, Button, Form, Badge, InputGroup, Modal } from 'react-bootstrap';
-import { addOfferToRequest } from '../../services/requestService';
+import { Container, Row, Col, Card, Button, Form, Badge, InputGroup } from 'react-bootstrap';
+import OfferModal from './OfferModal';
 
 const RequestList = ({ requests, onNavigateToAdd, refreshRequests, showToast }) => {
   const [searchTerm, setSearchTerm] = useState('');
@@ -9,14 +9,11 @@ const RequestList = ({ requests, onNavigateToAdd, refreshRequests, showToast }) 
 
   const [showModal, setShowModal] = useState(false);
   const [activeRequest, setActiveRequest] = useState(null);
-  const [offerData, setOfferData] = useState({
-    offeredPrice: '',
-    quantityOffered: '',
-    deliveryDate: '',
-    remarks: ''
-  });
 
   const filteredRequests = requests.filter(req => {
+    const isFulfilled = req.quantity === 0 || (req.status && req.status.includes('Fully Fulfilled'));
+    if (isFulfilled) return false;
+
     const matchesSearch = req.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           req.location.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === 'All' || req.category === selectedCategory;
@@ -26,148 +23,137 @@ const RequestList = ({ requests, onNavigateToAdd, refreshRequests, showToast }) 
 
   const handleOpenModal = (req) => {
     setActiveRequest(req);
-    setOfferData({ offeredPrice: '', quantityOffered: '', deliveryDate: '', remarks: '' });
     setShowModal(true);
   };
 
-  const handleCloseModal = () => {
-    setShowModal(false);
-    setActiveRequest(null);
-  };
-
-  const handleOfferChange = (e) => {
-    const { name, value } = e.target;
-    setOfferData(prev => ({ ...prev, [name]: value }));
-  };
-
-  const handleOfferSubmit = async (e) => {
-    e.preventDefault();
-    const newOffer = {
-      sender: 'Current Logged In User',
-      offeredPrice: Number(offerData.offeredPrice),
-      quantityOffered: Number(offerData.quantityOffered),
-      deliveryDate: offerData.deliveryDate,
-      remarks: offerData.remarks
-    };
-
-    try {
-      await addOfferToRequest(activeRequest.id, newOffer);
-      if (showToast) showToast(`Offer of LKR ${offerData.offeredPrice} submitted successfully! 🚀`, 'success');
-      handleCloseModal();
-      if (refreshRequests) refreshRequests();
-    } catch (error) {
-      if (showToast) showToast('Failed to submit offer to server.', 'danger');
-    }
-  };
-
   return (
-    <Container className="mt-4 mb-5">
-      <div className="d-flex justify-content-between align-items-center mb-4">
-        <div>
-          <h2 className="fw-bold text-success mb-1">Agri-Bridge Request & Supply Hub</h2>
-          <p className="text-muted">Two-way marketplace connecting Buyers & Sellers automatically</p>
+    <Container fluid className="px-0">
+      {/* Scenic Banner Card */}
+      <Card className="border-0 shadow-sm mb-4 position-relative overflow-hidden" style={{ borderRadius: '12px' }}>
+        <div 
+          className="p-4 text-white d-flex flex-column justify-content-between"
+          style={{
+            background: 'url("/farm-banner.png")',
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+          }}
+        >
+          <div className="d-flex justify-content-between align-items-start">
+            <div style={{ color: '#0f3d24' }}>
+              <span className="small fw-bold text-uppercase tracking-wider opacity-75">AGRI-BRIDGE</span>
+              <h2 className="fw-bold mb-1 display-6" style={{ color: '#0f3d24' }}>Request & Supply Hub</h2>
+              <p className="mb-0 opacity-90 small fw-semibold">Two-way marketplace connecting Buyers & Sellers automatically.</p>
+            </div>
+            <Button 
+              variant="success" 
+              className="fw-bold shadow px-4 py-2" 
+              style={{ backgroundColor: '#136534', border: 'none', borderRadius: '8px' }}
+              onClick={onNavigateToAdd}
+            >
+              + Post Buyer / Seller
+            </Button>
+          </div>
         </div>
-        <Button variant="success" className="fw-bold shadow-sm" onClick={onNavigateToAdd}>
-          + Post Buyer / Seller
-        </Button>
-      </div>
 
-      <Card className="p-3 mb-4 shadow-sm border-0 bg-light">
-        <Row className="g-3">
-          <Col md={5}>
-            <InputGroup>
-              <InputGroup.Text className="bg-white">🔍</InputGroup.Text>
-              <Form.Control
-                type="text"
-                placeholder="Search by crop, keyword, or location..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </InputGroup>
-          </Col>
-          <Col md={4}>
-            <Form.Select
-              value={selectedType}
-              onChange={(e) => setSelectedType(e.target.value)}
-            >
-              <option value="All">All Post Types (Buyers & Sellers)</option>
-              <option value="Buyer">🛒 Buyers Only</option>
-              <option value="Seller">🚜 Sellers Only</option>
-            </Form.Select>
-          </Col>
-          <Col md={3}>
-            <Form.Select
-              value={selectedCategory}
-              onChange={(e) => setSelectedCategory(e.target.value)}
-            >
-              <option value="All">All Categories</option>
-              <option value="Vegetables">Vegetables</option>
-              <option value="Fruits">Fruits</option>
-              <option value="Seeds">Seeds</option>
-              <option value="Fertilizer">Fertilizer</option>
-              <option value="Equipment">Equipment</option>
-            </Form.Select>
-          </Col>
-        </Row>
+        {/* Filter Bar */}
+        <Card.Body className="bg-white p-3 border-top">
+          <Row className="g-3 align-items-center">
+            <Col md={5}>
+              <InputGroup>
+                <InputGroup.Text className="bg-white border-end-0 text-muted">🔍</InputGroup.Text>
+                <Form.Control
+                  type="text"
+                  className="border-start-0 ps-0 shadow-none"
+                  placeholder="Search by crop, keyword, or location..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </InputGroup>
+            </Col>
+            <Col md={4}>
+              <Form.Select
+                className="shadow-none"
+                value={selectedType}
+                onChange={(e) => setSelectedType(e.target.value)}
+              >
+                <option value="All">👥 All Post Types (Buyers & Sellers)</option>
+                <option value="Buyer">🛒 Buyers Only</option>
+                <option value="Seller">🚜 Sellers Only</option>
+              </Form.Select>
+            </Col>
+            <Col md={3}>
+              <Form.Select
+                className="shadow-none"
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+              >
+                <option value="All">🏷️ All Categories</option>
+                <option value="Vegetables">Vegetables</option>
+                <option value="Fruits">Fruits</option>
+                <option value="Seeds">Seeds</option>
+                <option value="Fertilizer">Fertilizer</option>
+                <option value="Equipment">Equipment</option>
+              </Form.Select>
+            </Col>
+          </Row>
+        </Card.Body>
       </Card>
 
+      {/* Product Cards Grid */}
       <Row className="g-4">
         {filteredRequests.length > 0 ? (
           filteredRequests.map((req) => (
             <Col md={4} key={req.id || req._id}>
-              <Card className={`h-100 shadow-sm border-0 ${req.status && req.status.includes('Matched') ? 'border-start border-success border-4' : ''}`}>
-                <Card.Body className="d-flex flex-column">
+              <Card className="h-100 shadow-sm border-0 rounded-4 overflow-hidden bg-white">
+                <Card.Body className="d-flex flex-column p-4">
                   {req.image && (
-                    <div className="mb-3 text-center">
+                    <div className="mb-3 position-relative">
                       <img 
                         src={req.image} 
                         alt={req.title} 
-                        className="rounded w-100 shadow-sm" 
-                        style={{ height: '140px', objectFit: 'cover' }} 
+                        className="rounded-3 w-100 shadow-sm" 
+                        style={{ height: '150px', objectFit: 'cover' }} 
                       />
                     </div>
                   )}
+
                   <div className="d-flex justify-content-between align-items-center mb-2">
-                    <Badge bg={req.requestType === 'Buyer' ? 'primary' : 'success'} className="px-2 py-1">
+                    <Badge bg={req.requestType === 'Buyer' ? 'primary' : 'success'} className="px-2 py-1 rounded-pill">
                       {req.requestType === 'Buyer' ? '🛒 Buyer' : '🚜 Seller'}
                     </Badge>
-                    <Badge bg="secondary" className="px-2 py-1">{req.category}</Badge>
+                    <span className="text-muted small">🏷️ {req.category}</span>
                   </div>
 
-                  <div className="d-flex justify-content-between align-items-center mb-2">
-                    <small className="text-muted fw-semibold">📍 {req.location}</small>
-                    <Badge bg="warning" text="dark">📦 {req.quantity || 0} Kg</Badge>
-                    {req.status && req.status.includes('Matched') && (
-                      <Badge bg="warning" text="dark">⚡ Auto-Matched</Badge>
-                    )}
+                  <Card.Title className="fw-bold mb-1 text-dark fs-5">{req.title}</Card.Title>
+                  <div className="d-flex justify-content-between align-items-center mb-3">
+                    <small className="text-muted">📍 {req.location}</small>
+                    <Badge bg="warning" text="dark" className="px-2 py-1">📦 {req.quantity || 0} Kg</Badge>
                   </div>
 
-                  <Card.Title className="fw-bold mb-2">{req.title}</Card.Title>
-                  <Card.Text className="text-secondary small flex-grow-1">
+                  <Card.Text className="text-secondary small flex-grow-1 mb-3">
                     {req.description}
                   </Card.Text>
                   
-                  <div className="bg-light p-2 rounded mb-3">
-                    <div className="d-flex justify-content-between">
+                  <div className="bg-light p-3 rounded-3 mb-3 border-0">
+                    <div className="d-flex justify-content-between align-items-center mb-1">
                       <span className="small text-muted">
                         {req.requestType === 'Buyer' ? 'Target Price:' : 'Asking Price:'}
                       </span>
-                      <strong className="text-success">LKR {req.startingPrice}</strong>
+                      <strong className="text-success fs-6">LKR {req.startingPrice}</strong>
                     </div>
-                    <div className="d-flex justify-content-between mt-1">
+                    <div className="d-flex justify-content-between align-items-center">
                       <span className="small text-muted">Valid Until:</span>
-                      <small className="fw-semibold text-danger">{req.biddingEndTime}</small>
+                      <small className="fw-semibold text-danger">📅 {req.biddingEndTime}</small>
                     </div>
                   </div>
 
-                  {/* Public Marketplace Card: Only View Details (No Delete Icon) */}
                   <div>
                     <Button 
                       variant="outline-success" 
-                      className="w-100 fw-bold"
+                      className="w-100 fw-bold py-2 rounded-3"
                       onClick={() => handleOpenModal(req)}
                     >
-                      View Details & Respond
+                      View Details & Respond →
                     </Button>
                   </div>
                 </Card.Body>
@@ -181,125 +167,14 @@ const RequestList = ({ requests, onNavigateToAdd, refreshRequests, showToast }) 
         )}
       </Row>
 
-      {/* Details & Counter Offer Modal */}
-      {activeRequest && (
-        <Modal show={showModal} onHide={handleCloseModal} size="lg" centered>
-          <Modal.Header closeButton className="bg-success text-white">
-            <Modal.Title className="h5">
-              {activeRequest.requestType} Details & Direct Response
-            </Modal.Title>
-          </Modal.Header>
-          <Modal.Body className="p-4">
-            <Row className="mb-3 align-items-center">
-              <Col md={5}>
-                <Badge bg={activeRequest.requestType === 'Buyer' ? 'primary' : 'success'} className="mb-2 me-2">
-                  {activeRequest.requestType}
-                </Badge>
-                <Badge bg="secondary" className="mb-2">{activeRequest.category}</Badge>
-                <h4 className="fw-bold text-dark">{activeRequest.title}</h4>
-                <div className="d-flex align-items-center gap-2 mb-2">
-                  <span className="text-muted small">📍 Location: {activeRequest.location}</span>
-                  <Badge bg="warning" text="dark">📦 {activeRequest.quantity || 0} Kg</Badge>
-                </div>
-                <p className="mt-2 text-secondary small">{activeRequest.description}</p>
-              </Col>
-
-              <Col md={3} className="text-center px-1">
-                {activeRequest.image ? (
-                  <img 
-                    src={activeRequest.image} 
-                    alt={activeRequest.title} 
-                    className="rounded shadow-sm border" 
-                    style={{ width: '100px', height: '100px', objectFit: 'cover' }} 
-                  />
-                ) : (
-                  <div className="text-muted small border rounded p-2 bg-light" style={{ height: '90px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    📷 No Image
-                  </div>
-                )}
-              </Col>
-
-              <Col md={4} className="border-start">
-                <div className="bg-light p-3 rounded">
-                  <span className="text-muted small d-block">Listed Price:</span>
-                  <h4 className="text-success fw-bold">LKR {activeRequest.startingPrice}</h4>
-                  <hr className="my-2" />
-                  <span className="text-muted small d-block">Posted By:</span>
-                  <strong className="d-block text-dark">{activeRequest.buyerName || 'My Profile'}</strong>
-                  <small className="text-muted">{activeRequest.contact || '+94 77 123 4567'}</small>
-                </div>
-              </Col>
-            </Row>
-
-            <hr />
-
-            <h5 className="fw-bold text-success mb-3">Send Counter Offer / Direct Bid</h5>
-            <Form onSubmit={handleOfferSubmit}>
-              <Row>
-                <Col md={4}>
-                  <Form.Group className="mb-3">
-                    <Form.Label className="fw-semibold">Your Price (LKR)</Form.Label>
-                    <Form.Control
-                      type="number"
-                      name="offeredPrice"
-                      placeholder={`E.g. ${activeRequest.startingPrice}`}
-                      value={offerData.offeredPrice}
-                      onChange={handleOfferChange}
-                      required
-                    />
-                  </Form.Group>
-                </Col>
-                <Col md={4}>
-                  <Form.Group className="mb-3">
-                    <Form.Label className="fw-semibold">Quantity (Kg)</Form.Label>
-                    <Form.Control
-                      type="number"
-                      name="quantityOffered"
-                      placeholder="E.g. 500"
-                      value={offerData.quantityOffered}
-                      onChange={handleOfferChange}
-                      required
-                    />
-                  </Form.Group>
-                </Col>
-                <Col md={4}>
-                  <Form.Group className="mb-3">
-                    <Form.Label className="fw-semibold">Expected Delivery Date</Form.Label>
-                    <Form.Control
-                      type="date"
-                      name="deliveryDate"
-                      value={offerData.deliveryDate}
-                      onChange={handleOfferChange}
-                      required
-                    />
-                  </Form.Group>
-                </Col>
-              </Row>
-
-              <Form.Group className="mb-3">
-                <Form.Label className="fw-semibold">Remarks / Message</Form.Label>
-                <Form.Control
-                  as="textarea"
-                  rows={2}
-                  name="remarks"
-                  placeholder="Provide details about stock quality, transport, etc."
-                  value={offerData.remarks}
-                  onChange={handleOfferChange}
-                />
-              </Form.Group>
-
-              <div className="d-flex justify-content-end gap-2 mt-4">
-                <Button variant="secondary" onClick={handleCloseModal}>
-                  Close
-                </Button>
-                <Button variant="success" type="submit" className="fw-bold px-4">
-                  Submit Offer
-                </Button>
-              </div>
-            </Form>
-          </Modal.Body>
-        </Modal>
-      )}
+      {/* Reusable Offer Modal */}
+      <OfferModal
+        show={showModal}
+        onHide={() => setShowModal(false)}
+        targetRequest={activeRequest}
+        refreshRequests={refreshRequests}
+        showToast={showToast}
+      />
     </Container>
   );
 };
