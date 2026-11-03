@@ -140,7 +140,7 @@ const AddRequest = ({ onAddSuccess, showToast }) => {
         <div 
           className="position-absolute w-100 h-100"
           style={{
-            background: 'linear-gradient(90deg, rgba(255,255,255,1) 0%, rgba(255,255,255,0.95) 45%, rgba(255,255,255,0) 100%)',
+            background: 'linear-gradient(90deg, rgb(224, 235, 242) 0%, rgba(255,255,255,0) 100%)',
             zIndex: 1,
             top: 0,
             left: 0

@@ -174,9 +174,16 @@ export const RequestProvider = ({ children }) => {
     try {
       const targetReq = requests.find(r => r.id === reqId || r._id === reqId);
       if (targetReq) {
-        const updatedOffers = targetReq.offers.filter(o => o !== declinedOffer);
+        // Fix: Compare the actual values to filter out the correct offer
+        const updatedOffers = targetReq.offers.filter(o => 
+          !(o.offeredPrice === declinedOffer.offeredPrice && 
+            o.quantityOffered === declinedOffer.quantityOffered && 
+            o.remarks === declinedOffer.remarks)
+        );
+        
         const payload = { ...targetReq, offers: updatedOffers };
         const updatedDoc = await updateRequest(reqId, payload);
+        
         setRequests(prev => prev.map(r => (r.id === reqId || r._id === reqId ? updatedDoc : r)));
         setInternalSelectedRequest(updatedDoc);
       }

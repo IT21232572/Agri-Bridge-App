@@ -19,8 +19,7 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [activeMatchedRequest, setActiveMatchedRequest] = useState(null);
 
-  useEffect(() => {
-    const fetchSingleRequest = async () => {
+  const fetchSingleRequest = async () => {
       try {
         setLoadingReq(true);
         const data = await getRequestById(id);
@@ -33,10 +32,58 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
       }
     };
 
+  useEffect(() => {
     if (id) {
       fetchSingleRequest();
     }
   }, [id]);
+
+  const handleLocalUpdate = async (reqId, updatedData) => {
+    try {
+      // Calls your context function to update the backend
+      await onUpdatePost(reqId, updatedData);
+      
+      // Re-fetch the fresh data so the detail page UI updates instantly!
+      await fetchSingleRequest(); 
+      
+      setShowEditModal(false); // Close the modal if it isn't closed already
+    } catch (error) {
+      console.error("Failed to refresh after update", error);
+    }
+  };
+
+  // Create a custom wrapper for the delete action
+  const handleLocalDelete = async (reqId) => {
+    try {
+      // 1. Delete the post via context
+      await onDeletePost(reqId);
+      
+      // 2. Navigate away from this dead URL back to the list
+      navigate('/my-requests'); 
+    } catch (error) {
+      console.error("Failed to navigate after delete", error);
+    }
+  };
+
+  // Wrapper for accepting an offer
+  const handleLocalAcceptOffer = async (reqId, offer) => {
+    try {
+      await onAcceptOffer(reqId, offer);
+      await fetchSingleRequest(); // Instantly refresh the UI to show reduced quantity and remove the offer!
+    } catch (error) {
+      console.error("Failed to refresh after accepting offer", error);
+    }
+  };
+
+  // Wrapper for declining an offer
+  const handleLocalDeclineOffer = async (reqId, offer) => {
+    try {
+      await onDeclineOffer(reqId, offer);
+      await fetchSingleRequest(); // Refresh the UI to remove the declined offer
+    } catch (error) {
+      console.error("Failed to refresh after declining offer", error);
+    }
+  };
 
   if (loadingReq) {
     return <div className="text-center py-5">Loading request details from server...</div>;
@@ -51,7 +98,8 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
     req.id !== request.id &&
     req.requestType === oppositeType &&
     req.category.toLowerCase() === request.category.toLowerCase() &&
-    req.location.toLowerCase() === request.location.toLowerCase()
+    req.location.toLowerCase() === request.location.toLowerCase() &&
+    !(req.status.includes('Fulfilled') || req.quantity <= 0)
   );
 
   const requestAcceptedDeals = acceptedDeals.filter(deal => deal.requestId === request.id);
@@ -305,8 +353,8 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
                             <div className="small text-muted fst-italic">"{offer.remarks || 'No remarks added'}"</div>
                           </div>
                           <div className="d-flex gap-2">
-                            <Button variant="success" size="sm" className="fw-bold px-4 py-2 rounded-3 shadow-sm" onClick={() => onAcceptOffer(request.id, offer)}>Accept ✅</Button>
-                            <Button variant="outline-danger" size="sm" className="fw-bold px-4 py-2 rounded-3 shadow-sm bg-white" onClick={() => window.confirm("Are you sure?") && onDeclineOffer(request.id, offer)}>Decline ❌</Button>
+                            <Button variant="success" size="sm" className="fw-bold px-4 py-2 rounded-3 shadow-sm" onClick={() => handleLocalAcceptOffer(request.id, offer)}>Accept ✅</Button>
+                            <Button variant="outline-danger" size="sm" className="fw-bold px-4 py-2 rounded-3 shadow-sm bg-white" onClick={() => window.confirm("Are you sure?") && handleLocalDeclineOffer(request.id, offer)}>Decline ❌</Button>
                           </div>
                         </ListGroup.Item>
                       );
@@ -361,7 +409,7 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
         show={showEditModal}
         onHide={() => setShowEditModal(false)}
         request={request}
-        onUpdatePost={onUpdatePost}
+        onUpdatePost={handleLocalUpdate}
         showToast={showToast}
       />
 
@@ -386,7 +434,7 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
         </Modal.Body>
         <Modal.Footer className="bg-light">
           <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>Cancel</Button>
-          <Button variant="danger" className="fw-bold" onClick={() => { setShowDeleteModal(false); onDeletePost(request.id); }}>
+          <Button variant="danger" className="fw-bold" onClick={() => { setShowDeleteModal(false); handleLocalDelete(request.id); }}>
             Yes, Delete Post 🗑️
           </Button>
         </Modal.Footer>

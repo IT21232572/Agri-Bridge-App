@@ -34,7 +34,8 @@ const MyRequests = ({ requests, onDeleteRequest, showToast }) => {
       r.id !== req.id &&
       r.requestType === oppositeType &&
       r.category.toLowerCase() === req.category.toLowerCase() &&
-      r.location.toLowerCase() === req.location.toLowerCase()
+      r.location.toLowerCase() === req.location.toLowerCase() &&
+      !(r.status.includes('Fulfilled') || r.quantity <= 0) // <-- ADD THIS LINE
     );
     return matches.length;
   };
@@ -71,17 +72,17 @@ const MyRequests = ({ requests, onDeleteRequest, showToast }) => {
             background: 'url("/farm-banner.png")',
             backgroundSize: 'cover',
             backgroundPosition: 'center',
-            opacity: 0.3,
+            //opacity: 0.9,
             zIndex: 0
           }}
         />
-        <div 
+        {/* <div 
           className="position-absolute w-100 h-100"
           style={{
-            background: 'linear-gradient(180deg, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.6) 100%)',
+            background: 'linear-gradient(180deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.6) 100%)',
             zIndex: 1
           }}
-        />
+        /> */}
         
         <div className="p-4 position-relative" style={{ zIndex: 2 }}>
           <div className="mb-4">
