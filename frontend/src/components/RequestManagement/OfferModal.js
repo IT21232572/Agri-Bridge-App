@@ -3,7 +3,7 @@ import { Modal, Form, Row, Col, Badge, Button } from 'react-bootstrap';
 import { addOfferToRequest } from '../../services/requestService';
 import { useAuth } from '../../context/AuthContext';
 
-const OfferModal = ({ show, onHide, targetRequest, refreshRequests, showToast }) => {
+const OfferModal = ({ show, onHide, targetRequest, sourceRequest = null, refreshRequests, showToast }) => {
   const { user } = useAuth();
   const [offerData, setOfferData] = useState({
     offeredPrice: '',
@@ -31,6 +31,9 @@ const OfferModal = ({ show, onHide, targetRequest, refreshRequests, showToast })
       sender: user?.name || 'Registered Farmer',
       senderId: user?.id || null,
       senderLocation: user?.district || '',
+      senderContact: user?.phone || user?.contact || sourceRequest?.contact || '',
+      sourceRequestId: sourceRequest?.id || null,
+      sourceRequestTitle: sourceRequest?.title || '',
       offeredPrice: Number(offerData.offeredPrice),
       quantityOffered: Number(offerData.quantityOffered),
       deliveryDate: offerData.deliveryDate,
@@ -39,7 +42,14 @@ const OfferModal = ({ show, onHide, targetRequest, refreshRequests, showToast })
 
     try {
       await addOfferToRequest(targetRequest.id, newOffer);
-      if (showToast) showToast(`Offer of LKR ${offerData.offeredPrice} submitted successfully!`, 'success');
+      if (showToast) {
+        showToast(
+          sourceRequest
+            ? `Offer of LKR ${offerData.offeredPrice} sent from Post ${sourceRequest.id}!`
+            : `Offer of LKR ${offerData.offeredPrice} submitted successfully!`,
+          'success'
+        );
+      }
       onHide();
       if (refreshRequests) refreshRequests();
     } catch (error) {
@@ -57,6 +67,14 @@ const OfferModal = ({ show, onHide, targetRequest, refreshRequests, showToast })
         </Modal.Title>
       </Modal.Header>
       <Modal.Body className="p-4">
+        {sourceRequest && (
+          <div className="mb-3">
+            <Badge bg="info" text="dark" className="px-3 py-2 rounded-pill">
+              🔗 Responding from your post: {sourceRequest.title} ({sourceRequest.id})
+            </Badge>
+          </div>
+        )}
+
         <Row className="mb-3 align-items-center">
           <Col md={5}>
             <Badge bg={targetRequest.requestType === 'Buyer' ? 'primary' : 'success'} className="mb-2 me-2">
@@ -123,7 +141,13 @@ const OfferModal = ({ show, onHide, targetRequest, refreshRequests, showToast })
                 <Form.Control
                   type="number"
                   min="1"
-                  max={targetRequest.requestType === 'Seller' ? targetRequest.quantity : undefined}
+                  max={
+                    targetRequest.requestType === 'Seller'
+                      ? targetRequest.quantity
+                      : sourceRequest
+                      ? sourceRequest.quantity
+                      : undefined
+                  }
                   name="quantityOffered"
                   placeholder="E.g. 500"
                   value={offerData.quantityOffered}

@@ -67,7 +67,7 @@ const MainLayout = ({ children }) => {
             className={`text-white rounded py-2 px-3 fw-semibold ${location.pathname === '/my-requests' ? 'bg-success shadow-sm' : ''}`}
             style={{ transition: 'all 0.2s' }}
           >
-            📋 My Requests & Matches
+            My Requests & Matches
           </Nav.Link>
 
           <Nav.Link 
@@ -77,7 +77,7 @@ const MainLayout = ({ children }) => {
             className={`text-white rounded py-2 px-3 fw-semibold ${location.pathname === '/my-offers' ? 'bg-success shadow-sm' : ''}`}
             style={{ transition: 'all 0.2s' }}
           >
-            📩 My Sent Offers
+            Sent Offers
           </Nav.Link>
 
           <Nav.Link 
@@ -87,7 +87,7 @@ const MainLayout = ({ children }) => {
             className={`text-white rounded py-2 px-3 fw-semibold ${location.pathname === '/add' ? 'bg-success shadow-sm' : ''}`}
             style={{ transition: 'all 0.2s' }}
           >
-            ➕ Add Post
+            ➕ Create Advertisement
           </Nav.Link>
         </Nav>
 

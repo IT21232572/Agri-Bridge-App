@@ -4,6 +4,9 @@ const OfferSchema = new mongoose.Schema({
   sender: { type: String, required: true },
   senderId: { type: String },
   senderLocation: { type: String, trim: true },
+  senderContact: { type: String, trim: true },
+  sourceRequestId: { type: String, default: null },     // The sender's own Post ID (e.g., REQ-101)
+  sourceRequestTitle: { type: String, default: '' },
   offeredPrice: { type: Number, required: true, min: [0, 'Offered price cannot be negative'] },
   quantityOffered: { type: Number, required: true, min: [1, 'Quantity must be at least 1'] },
   deliveryDate: { type: String, required: true },

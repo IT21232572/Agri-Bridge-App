@@ -2,8 +2,8 @@ const mongoose = require('mongoose');
 
 const NotificationSchema = new mongoose.Schema(
   {
-    recipientId: { type: String, required: true }, // userId of the offer sender
-    recipientName: { type: String },
+    recipientId: { type: String, default: '' },
+    recipientName: { type: String, default: '' },
     title: { type: String, required: true },
     message: { type: String, required: true },
     requestId: { type: String },

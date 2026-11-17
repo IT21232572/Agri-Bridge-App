@@ -2,6 +2,8 @@ const express = require('express');
 const router = express.Router();
 const Request = require('../models/Request');
 const { protect } = require('../middleware/authMiddleware');
+const Notification = require('../models/Notification');
+const Deal = require('../models/Deal');
 
 
 // Get all requests
@@ -55,9 +57,11 @@ router.put('/:id', async (req, res) => {
 });
 
 // Delete a request
+// Delete a request and its associated deals
 router.delete('/:id', async (req, res) => {
   try {
     await Request.findOneAndDelete({ id: req.params.id });
+    await Deal.deleteMany({ requestId: req.params.id });
     res.json({ message: 'Request deleted successfully' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -74,6 +78,9 @@ router.post('/:id/offers', async (req, res) => {
       sender: req.body.sender,
       senderId: req.body.senderId,
       senderLocation: req.body.senderLocation,
+      senderContact: req.body.senderContact || '',
+      sourceRequestId: req.body.sourceRequestId || null,
+      sourceRequestTitle: req.body.sourceRequestTitle || '',
       offeredPrice: req.body.offeredPrice,
       quantityOffered: req.body.quantityOffered,
       deliveryDate: req.body.deliveryDate,
@@ -81,6 +88,13 @@ router.post('/:id/offers', async (req, res) => {
       status: 'Pending'
     });
     await request.save();
+    await Notification.create({
+    recipientId: String(request.userId || ''),
+    recipientName: request.buyerName || '',
+    title: '📩 New Offer Received',
+    message: `${req.body.sender} offered LKR ${req.body.offeredPrice}/Kg for ${request.title} (${req.body.quantityOffered} Kg).`,
+    requestId: request.id
+  });
     res.json(request);
   } catch (err) {
     res.status(400).json({ error: err.message });

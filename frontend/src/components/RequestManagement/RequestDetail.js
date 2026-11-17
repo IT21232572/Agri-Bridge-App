@@ -1,21 +1,35 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Container, Card, Badge, Button, Tabs, Tab, ListGroup, Row, Col, Table, Modal } from 'react-bootstrap';
+import { Container, Card, Badge, Button, Row, Col, Modal } from 'react-bootstrap';
 import { getRequestById } from '../../services/requestService';
 import EditPostModal from './EditPostModal';
 import OfferModal from './OfferModal';
+import MatchedRequestsModal from './MatchedRequestsModal';
+import ReceivedOffersModal from './ReceivedOffersModal';
+import SentOffersModal from './SentOffersModal';
+import AcceptedDealsModal from './AcceptedDealsModal';
 import { useAuth } from '../../context/AuthContext';
-import { downloadDealReceipt } from '../../utils/receiptGenerator';
 
-const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDeclineOffer, onUpdatePost, onDeletePost, showToast, refreshRequests }) => {
-  const { id } = useParams(); 
+const RequestDetail = ({
+  allRequests,
+  acceptedDeals,
+  onBack,
+  onAcceptOffer,
+  onDeclineOffer,
+  onUpdatePost,
+  onDeletePost,
+  showToast,
+  refreshRequests
+}) => {
+  const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  
+
   const [request, setRequest] = useState(null);
   const [loadingReq, setLoadingReq] = useState(true);
 
-  const [key, setKey] = useState('matched');
+  // Active popup state: 'matched' | 'offers' | 'sent' | 'accepted' | null
+  const [activePopup, setActivePopup] = useState(null);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
@@ -47,16 +61,16 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
       await fetchSingleRequest();
       setShowEditModal(false);
     } catch (error) {
-      console.error("Failed to refresh after update", error);
+      console.error('Failed to refresh after update', error);
     }
   };
 
   const handleLocalDelete = async (reqId) => {
     try {
       await onDeletePost(reqId);
-      navigate('/my-requests'); 
+      navigate('/my-requests');
     } catch (error) {
-      console.error("Failed to navigate after delete", error);
+      console.error('Failed to navigate after delete', error);
     }
   };
 
@@ -65,7 +79,7 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
       await onAcceptOffer(reqId, offer);
       await fetchSingleRequest();
     } catch (error) {
-      console.error("Failed to refresh after accepting offer", error);
+      console.error('Failed to refresh after accepting offer', error);
     }
   };
 
@@ -74,7 +88,7 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
       await onDeclineOffer(reqId, offer);
       await fetchSingleRequest();
     } catch (error) {
-      console.error("Failed to refresh after declining offer", error);
+      console.error('Failed to refresh after declining offer', error);
     }
   };
 
@@ -125,14 +139,9 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
 
   const oppositeType = request.requestType === 'Buyer' ? 'Seller' : 'Buyer';
 
-  // Helper to check if a post belongs to the same owner
   const isSameOwner = (postA, postB) => {
-    if (postA.userId && postB.userId) {
-      return String(postA.userId) === String(postB.userId);
-    }
-    if (user && postB.userId && String(postB.userId) === String(user.id)) {
-      return true;
-    }
+    if (postA.userId && postB.userId) return String(postA.userId) === String(postB.userId);
+    if (user && postB.userId && String(postB.userId) === String(user.id)) return true;
     return (
       postA.buyerName &&
       postB.buyerName &&
@@ -140,28 +149,23 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
     );
   };
 
-  // Helper to check if Seller has enough stock to fulfill Buyer's request
   const hasEnoughQuantity = (currentReq, candidateReq) => {
     const currentQty = Number(currentReq.quantity) || 0;
     const candidateQty = Number(candidateReq.quantity) || 0;
-
-    if (currentReq.requestType === 'Seller') {
-      return candidateQty <= currentQty;
-    }
-    return candidateQty >= currentQty;
+    return currentReq.requestType === 'Seller' ? candidateQty <= currentQty : candidateQty >= currentQty;
   };
 
-  // 1. Filter by same product, opposite type, different owner, valid quantity, and active stock
-  const rawMatches = allRequests.filter(req =>
-    req.id !== request.id &&
-    req.requestType === oppositeType &&
-    req.title.trim().toLowerCase() === request.title.trim().toLowerCase() &&
-    !isSameOwner(request, req) &&
-    hasEnoughQuantity(request, req) &&
-    !(req.status.includes('Fulfilled') || req.quantity <= 0)
+  // 1. Matched Requests
+  const rawMatches = allRequests.filter(
+    req =>
+      req.id !== request.id &&
+      req.requestType === oppositeType &&
+      req.title.trim().toLowerCase() === request.title.trim().toLowerCase() &&
+      !isSameOwner(request, req) &&
+      hasEnoughQuantity(request, req) &&
+      !(req.status.includes('Fulfilled') || req.quantity <= 0)
   );
 
-  // 2. Score each match by Nearest Location + Best Price
   const prices = rawMatches.map(m => Number(m.startingPrice) || 0);
   const minPrice = prices.length ? Math.min(...prices) : 0;
   const maxPrice = prices.length ? Math.max(...prices) : 0;
@@ -170,28 +174,23 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
     .map(match => {
       const proximity = getProximityInfo(request.location, match.location);
       const price = Number(match.startingPrice) || 0;
-
       let priceScore = 50;
       if (maxPrice > minPrice) {
-        priceScore = request.requestType === 'Buyer'
-          ? ((maxPrice - price) / (maxPrice - minPrice)) * 50
-          : ((price - minPrice) / (maxPrice - minPrice)) * 50;
+        priceScore =
+          request.requestType === 'Buyer'
+            ? ((maxPrice - price) / (maxPrice - minPrice)) * 50
+            : ((price - minPrice) / (maxPrice - minPrice)) * 50;
       }
-
-      const totalScore = proximity.score + priceScore;
-      return { ...match, totalScore, proximityLabel: proximity.label };
+      return { ...match, totalScore: proximity.score + priceScore, proximityLabel: proximity.label };
     })
     .sort((a, b) => b.totalScore - a.totalScore);
 
   const bestMatch = matchedRequestsList.length > 0 ? matchedRequestsList[0] : null;
 
-  const requestAcceptedDeals = acceptedDeals.filter(deal => deal.requestId === request.id);
-
-  // Rank Received Offers using Nearest Location, Best Price, Valid Quantity & Delivery Date
+  // 2. Received Offers
   const getRankedOffers = () => {
     if (!request.offers || request.offers.length === 0) return [];
 
-    // Filter out self-offers if any exist
     const validOffers = request.offers.filter(offer => {
       if ((offer.status || 'Pending') !== 'Pending') return false;
       if (offer.senderId && request.userId && String(offer.senderId) === String(request.userId)) return false;
@@ -208,36 +207,28 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
       .map((offer, idx) => {
         const price = Number(offer.offeredPrice) || 0;
         const offeredQty = Number(offer.quantityOffered) || 0;
+        const isQuantityValid = request.requestType === 'Seller' ? offeredQty <= targetQty : offeredQty > 0;
 
-        // Check if quantity is feasible (if Seller, buyer cannot ask for more than available stock)
-        const isQuantityValid = request.requestType === 'Seller'
-          ? offeredQty <= targetQty
-          : offeredQty > 0;
-
-        // 1. Proximity Score (40 pts max)
         const proximity = offer.senderLocation
           ? getProximityInfo(request.location, offer.senderLocation)
           : { score: 20, label: '📍 Partner Location' };
         const locationScore = (proximity.score / 50) * 40;
 
-        // 2. Best Price Score (40 pts max)
         let priceScore = 40;
         if (maxOfferPrice > minOfferPrice) {
-          priceScore = request.requestType === 'Seller'
-            ? ((price - minOfferPrice) / (maxOfferPrice - minOfferPrice)) * 40 // Seller wants highest price
-            : ((maxOfferPrice - price) / (maxOfferPrice - minOfferPrice)) * 40; // Buyer wants lowest price
+          priceScore =
+            request.requestType === 'Seller'
+              ? ((price - minOfferPrice) / (maxOfferPrice - minOfferPrice)) * 40
+              : ((maxOfferPrice - price) / (maxOfferPrice - minOfferPrice)) * 40;
         }
 
-        // 3. Quantity & Delivery Score (20 pts max)
         const qtyRatio = targetQty > 0 ? Math.min(offeredQty, targetQty) / targetQty : 1;
-        const qtyScore = isQuantityValid ? qtyRatio * 20 : -100; // Penalize impossible quantities
-
-        const totalScore = locationScore + priceScore + qtyScore;
+        const qtyScore = isQuantityValid ? qtyRatio * 20 : -100;
 
         return {
           ...offer,
           originalIndex: idx,
-          totalScore,
+          totalScore: locationScore + priceScore + qtyScore,
           isQuantityValid,
           proximityLabel: proximity.label
         };
@@ -248,7 +239,89 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
   const rankedOffers = getRankedOffers();
   const bestOffer = rankedOffers.length > 0 && rankedOffers[0].isQuantityValid ? rankedOffers[0] : null;
 
+  // 3. Collect all offers sent from this post
+  const allSentOffersFromThisPost = [];
+  allRequests.forEach(targetPost => {
+    (targetPost.offers || []).forEach((offer, idx) => {
+      if (offer.sourceRequestId && String(offer.sourceRequestId) === String(request.id)) {
+        allSentOffersFromThisPost.push({
+          key: `${targetPost.id}-${idx}`,
+          status: offer.status || 'Pending',
+          offer,
+          targetPost
+        });
+      }
+    });
+  });
+
+  // Only keep non-accepted offers (Pending / Declined) in Sent Offers
+  const sentOffersFromThisPost = allSentOffersFromThisPost.filter(
+    item => item.status !== 'Accepted'
+  );
+
+  // 4. Accepted Deals (Both Received Offers Accepted by You + Sent Offers Accepted by Partner)
+  const receivedAcceptedDeals = (request.offers || [])
+    .filter(offer => offer.status === 'Accepted')
+    .map((deal, idx) => ({
+      key: `received-${deal._id || idx}`,
+      direction: 'Received Offer',
+      partnerName: deal.sender || 'Registered Partner',
+      agreedPrice: deal.offeredPrice,
+      quantityOffered: deal.quantityOffered,
+      deliveryDate: deal.deliveryDate,
+      remarks: deal.remarks,
+      receiptParams: {
+        receiptId: `RCP-${request.id}-${idx + 1}`,
+        requestId: request.id,
+        productTitle: request.title,
+        category: request.category,
+        postType: request.requestType,
+        postOwnerName: request.buyerName,
+        postOwnerLocation: request.location,
+        postOwnerContact: request.contact,
+        offerSenderName: deal.sender,
+        offerSenderLocation: deal.senderLocation || 'Partner District',
+        offerSenderContact: deal.senderContact,
+        agreedPrice: deal.offeredPrice,
+        quantity: deal.quantityOffered,
+        deliveryDate: deal.deliveryDate,
+        remarks: deal.remarks
+      }
+    }));
+
+  const sentAcceptedDeals = allSentOffersFromThisPost
+    .filter(item => item.status === 'Accepted')
+    .map(item => ({
+      key: `sent-${item.key}`,
+      direction: 'Sent Offer',
+      partnerName: item.targetPost.buyerName || 'Registered Partner',
+      agreedPrice: item.offer.offeredPrice,
+      quantityOffered: item.offer.quantityOffered,
+      deliveryDate: item.offer.deliveryDate,
+      remarks: item.offer.remarks,
+      receiptParams: {
+        receiptId: `RCP-${request.id}-${item.targetPost.id}`,
+        requestId: `${request.id} ↔ ${item.targetPost.id}`,
+        productTitle: request.title,
+        category: request.category,
+        postType: item.targetPost.requestType,
+        postOwnerName: item.targetPost.buyerName,
+        postOwnerLocation: item.targetPost.location,
+        postOwnerContact: item.targetPost.contact,
+        offerSenderName: item.offer.sender,
+        offerSenderLocation: item.offer.senderLocation || request.location,
+        offerSenderContact: item.offer.senderContact || request.contact,
+        agreedPrice: item.offer.offeredPrice,
+        quantity: item.offer.quantityOffered,
+        deliveryDate: item.offer.deliveryDate,
+        remarks: item.offer.remarks
+      }
+    }));
+
+  const requestAcceptedDeals = [...receivedAcceptedDeals, ...sentAcceptedDeals];
+
   const handleOpenMatchModal = (matchReq) => {
+    setActivePopup(null); // Close MatchedRequestsModal before opening OfferModal
     setActiveMatchedRequest(matchReq);
     setShowMatchModal(true);
   };
@@ -258,8 +331,48 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
     if (showToast) showToast(`Request ID ${request.id} copied to clipboard!`, 'info');
   };
 
+  // 4 Highlighted Action Button Cards config
+  const actionCards = [
+    {
+      key: 'matched',
+      icon: '⚡',
+      title: 'Matched Requests',
+      subtitle: 'Auto-matched posts & best price',
+      count: matchedRequestsList.length,
+      accentColor: '#198754',
+      badgeBg: 'success'
+    },
+    {
+      key: 'offers',
+      icon: '📩',
+      title: 'Received Offers',
+      subtitle: 'Incoming bids ranked by value',
+      count: rankedOffers.length,
+      accentColor: '#0d6efd',
+      badgeBg: 'primary'
+    },
+    {
+      key: 'sent',
+      icon: '📤',
+      title: 'Sent Offers',
+      subtitle: 'Bids sent from this post',
+      count: sentOffersFromThisPost.length,
+      accentColor: '#0dcaf0',
+      badgeBg: 'info'
+    },
+    {
+      key: 'accepted',
+      icon: '🤝',
+      title: 'Accepted Deals',
+      subtitle: 'Confirmed deals & receipts',
+      count: requestAcceptedDeals.length,
+      accentColor: '#ffc107',
+      badgeBg: 'warning'
+    }
+  ];
+
   return (
-    <Container fluid className="px-0">
+    <Container fluid className="px-0 pb-4">
       {/* Breadcrumb Navigation & Top Action Buttons */}
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
@@ -270,30 +383,30 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
           <span className="fw-bold text-dark small">Request Details</span>
         </div>
         <div className="d-flex gap-2">
-          <Button 
-            variant="outline-success" 
-            size="sm" 
-            className="fw-bold px-3 bg-white shadow-sm" 
+          <Button
+            variant="outline-success"
+            size="sm"
+            className="fw-bold px-3 bg-white shadow-sm"
             style={{ borderRadius: '8px' }}
             onClick={() => setShowEditModal(true)}
           >
-            ✏️ Edit Post
+            ✏️ Edit Advertisement
           </Button>
-          <Button 
-            variant="outline-danger" 
-            size="sm" 
-            className="fw-bold px-3 bg-white shadow-sm" 
+          <Button
+            variant="outline-danger"
+            size="sm"
+            className="fw-bold px-3 bg-white shadow-sm"
             style={{ borderRadius: '8px' }}
             onClick={() => setShowDeleteModal(true)}
           >
-            🗑️ Delete Post
+            🗑️ Delete Advertisement
           </Button>
         </div>
       </div>
 
       {/* Scenic Background Hero Banner Card */}
       <Card className="border-0 shadow-sm mb-4 position-relative overflow-hidden rounded-4 bg-white">
-        <div 
+        <div
           className="position-absolute w-100 h-100"
           style={{
             background: 'url("/farm-banner.png")',
@@ -306,7 +419,7 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
             left: 0
           }}
         />
-        <div 
+        <div
           className="position-absolute w-100 h-100"
           style={{
             background: 'linear-gradient(90deg, rgba(255,255,255,1) 0%, rgba(255,255,255,0.85) 45%, rgba(255,255,255,0.1) 100%)',
@@ -315,7 +428,7 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
             left: 0
           }}
         />
-        <div className="p-5 position-relative d-flex flex-column justify-content-center" style={{ minHeight: '340px', zIndex: 2 }}>
+        <div className="p-5 position-relative d-flex flex-column justify-content-center" style={{ minHeight: '300px', zIndex: 2 }}>
           <Row className="align-items-center g-4 w-100 m-0">
             <Col md={5} className="px-0">
               <div className="d-flex align-items-center gap-3 mb-3">
@@ -337,15 +450,18 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
             <Col md={4} className="text-center">
               {request.image ? (
                 <div className="position-relative d-inline-block">
-                  <img 
-                    src={request.image} 
-                    alt={request.title} 
-                    className="rounded-4 shadow-lg border border-3 border-white bg-white" 
-                    style={{ width: '320px', height: '200px', objectFit: 'cover' }} 
+                  <img
+                    src={request.image}
+                    alt={request.title}
+                    className="rounded-4 shadow-lg border border-3 border-white bg-white"
+                    style={{ width: '320px', height: '200px', objectFit: 'cover' }}
                   />
                 </div>
               ) : (
-                <div className="bg-light rounded-4 shadow-sm border d-inline-flex align-items-center justify-content-center text-muted fs-6" style={{ width: '320px', height: '200px' }}>
+                <div
+                  className="bg-light rounded-4 shadow-sm border d-inline-flex align-items-center justify-content-center text-muted fs-6"
+                  style={{ width: '320px', height: '200px' }}
+                >
                   📷 No Image Available
                 </div>
               )}
@@ -402,277 +518,92 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
         </Card.Body>
       </Card>
 
-      {/* Tabs & Content Section */}
-      <Card className="shadow-sm border-0 rounded-4">
-        <Card.Body className="p-4">
-          <Tabs id="request-details-tabs" activeKey={key} onSelect={(k) => setKey(k)} className="mb-4 border-bottom pb-2">
-            <Tab eventKey="matched" title={`⚡ Matched Requests (${matchedRequestsList.length})`}>
-              <div className="py-2">
-                {matchedRequestsList.length > 0 ? (
-                  <>
-                    {/* Highlighted Top Best Match Banner */}
-                    {bestMatch && (
-                      <Card 
-                        className="border-success border-2 shadow-sm mb-4 rounded-4" 
-                        style={{ backgroundColor: '#f2fbf5', cursor: 'pointer' }}
-                        onClick={() => handleOpenMatchModal(bestMatch)}
-                      >
-                        <Card.Body className="p-4">
-                          <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
-                            <div className="d-flex align-items-center gap-2">
-                              <Badge bg="success" className="px-3 py-2 rounded-pill fs-6 shadow-sm">
-                                ⭐ Best Match (Nearest & Best Price)
-                              </Badge>
-                              <Badge bg={bestMatch.requestType === 'Buyer' ? 'primary' : 'dark'} className="px-3 py-2 rounded-pill">
-                                {bestMatch.requestType}
-                              </Badge>
-                              <Badge bg="light" text="dark" className="border px-3 py-2 rounded-pill">
-                                {bestMatch.proximityLabel}
-                              </Badge>
-                            </div>
-                            <small className="text-muted fw-semibold">ID: {bestMatch.id}</small>
-                          </div>
-
-                          <Row className="align-items-center mt-3 g-3">
-                            <Col md={7}>
-                              <h4 className="fw-bold text-dark mb-1">{bestMatch.title}</h4>
-                              <p className="text-secondary small mb-2">{bestMatch.description}</p>
-                              <div className="d-flex flex-wrap gap-3 small fw-semibold text-muted">
-                                <span>📍 {bestMatch.location}</span>
-                                <span>
-                                  📦 {bestMatch.requestType === 'Buyer' ? 'Needs' : 'Available'}: {bestMatch.quantity || 0} Kg
-                                </span>
-                                <span>👤 {bestMatch.buyerName || 'Farmer'}</span>
-                              </div>
-                            </Col>
-                            <Col md={5} className="text-md-end">
-                              <span className="text-muted small d-block">
-                                {bestMatch.requestType === 'Seller' ? 'Best Asking Price' : 'Best Target Price'}
-                              </span>
-                              <h3 className="fw-bold text-success mb-2">LKR {bestMatch.startingPrice}</h3>
-                              <Button variant="success" size="sm" className="fw-bold px-4 py-2 rounded-3">
-                                Respond to Best Match →
-                              </Button>
-                            </Col>
-                          </Row>
-                        </Card.Body>
-                      </Card>
-                    )}
-
-                    {/* All Matched Posts Grid */}
-                    <h6 className="fw-bold text-secondary mb-3">All Matching Posts ({matchedRequestsList.length})</h6>
-                    <Row className="g-3">
-                      {matchedRequestsList.map((match, idx) => {
-                        const isTopMatch = idx === 0;
-                        return (
-                          <Col md={6} key={match.id}>
-                            <Card 
-                              className={`shadow-sm h-100 rounded-3 ${isTopMatch ? 'border-success border-2' : 'border'}`} 
-                              style={{ cursor: 'pointer', transition: 'all 0.2s' }} 
-                              onClick={() => handleOpenMatchModal(match)}
-                            >
-                              <Card.Body>
-                                <div className="d-flex justify-content-between align-items-center mb-2">
-                                  <div className="d-flex gap-2">
-                                    <Badge bg={match.requestType === 'Buyer' ? 'primary' : 'success'}>{match.requestType}</Badge>
-                                    {isTopMatch && <Badge bg="success">⭐ Best Match</Badge>}
-                                  </div>
-                                  <small className="text-muted">ID: {match.id}</small>
-                                </div>
-                                <h5 className="fw-bold">{match.title}</h5>
-                                <div className="d-flex justify-content-between align-items-center mb-2">
-                                  <small className="text-muted">{match.proximityLabel}</small>
-                                  <Badge bg="warning" text="dark">📦 {match.quantity || 0} Kg</Badge>
-                                </div>
-                                <div className="d-flex justify-content-between align-items-center">
-                                  <strong className="text-success">LKR {match.startingPrice}</strong>
-                                  <Badge bg="light" text="success" className="border border-success">
-                                    {isTopMatch ? 'Top Ranked ✅' : 'Matched'}
-                                  </Badge>
-                                </div>
-                              </Card.Body>
-                            </Card>
-                          </Col>
-                        );
-                      })}
-                    </Row>
-                  </>
-                ) : (
-                  <div className="text-center py-5">
-                    <div className="mb-3 text-success fs-1">📦</div>
-                    <h5 className="fw-bold text-dark">No automatic matches found yet</h5>
-                    <p className="text-muted small mb-4">Compatible posts for {request.title} from the opposite marketplace will appear here.</p>
-                    <Button variant="success" className="fw-bold px-4 py-2 shadow-sm" style={{ backgroundColor: '#136534', border: 'none', borderRadius: '8px' }} onClick={() => window.location.href = '/hub'}>
-                      🔍 Explore Matching Requests
-                    </Button>
+      {/* 4 Highlighted Interactive Action Button Cards */}
+      <Row className="g-3">
+        {actionCards.map(item => (
+          <Col md={6} lg={3} key={item.key}>
+            <Card
+              role="button"
+              onClick={() => setActivePopup(item.key)}
+              className="border-0 shadow-sm rounded-4 h-100 bg-white"
+              style={{
+                cursor: 'pointer',
+                borderTop: `4px solid ${item.accentColor}`,
+                transition: 'transform 0.18s ease, box-shadow 0.18s ease'
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.transform = 'translateY(-4px)';
+                e.currentTarget.style.boxShadow = '0 0.75rem 1.5rem rgba(0, 0, 0, 0.1)';
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '';
+              }}
+            >
+              <Card.Body className="p-4 d-flex flex-column justify-content-between">
+                <div className="d-flex justify-content-between align-items-start mb-3">
+                  <div
+                    className="rounded-3 d-flex align-items-center justify-content-center fs-3 bg-light"
+                    style={{ width: '50px', height: '50px' }}
+                  >
+                    {item.icon}
                   </div>
-                )}
-              </div>
-            </Tab>
+                  <Badge
+                    bg={item.count > 0 ? item.badgeBg : 'secondary'}
+                    text={item.badgeBg === 'warning' || item.badgeBg === 'info' ? 'dark' : 'white'}
+                    className="fs-6 px-3 py-2 rounded-pill shadow-sm"
+                  >
+                    {item.count}
+                  </Badge>
+                </div>
 
-            <Tab eventKey="offers" title={`📩 Received Offers (${rankedOffers.length})`}>
-              <div className="py-2">
-                {rankedOffers.length > 0 ? (
-                  <>
-                    {/* Highlighted Best Offer Banner */}
-                    {bestOffer && (
-                      <Card className="border-success border-2 shadow-sm mb-4 rounded-4" style={{ backgroundColor: '#f2fbf5' }}>
-                        <Card.Body className="p-4">
-                          <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-                            <div className="d-flex flex-wrap align-items-center gap-2">
-                              <Badge bg="success" className="px-3 py-2 rounded-pill fs-6 shadow-sm">
-                                ⭐ Best Offer (Nearest, Best Price & Valid Qty)
-                              </Badge>
-                              <Badge bg="light" text="dark" className="border px-3 py-2 rounded-pill">
-                                {bestOffer.proximityLabel}
-                              </Badge>
-                              <Badge bg="info" className="px-3 py-2 rounded-pill text-dark">
-                                📅 Delivery: {bestOffer.deliveryDate}
-                              </Badge>
-                            </div>
-                          </div>
-
-                          <Row className="align-items-center g-3">
-                            <Col md={7}>
-                              <h5 className="fw-bold text-dark mb-1">From: {bestOffer.sender || 'Registered Partner'}</h5>
-                              <p className="text-muted fst-italic small mb-2">
-                                "{bestOffer.remarks || 'No remarks added'}"
-                              </p>
-                              <div className="d-flex flex-wrap gap-3 small fw-semibold text-secondary">
-                                <span>📦 Offered Quantity: {bestOffer.quantityOffered} Kg</span>
-                                <span>📅 Expected Delivery: {bestOffer.deliveryDate}</span>
-                              </div>
-                            </Col>
-                            <Col md={5} className="text-md-end">
-                              <span className="text-muted small d-block">Best Offered Price</span>
-                              <h3 className="fw-bold text-success mb-3">LKR {bestOffer.offeredPrice}</h3>
-                              <div className="d-flex justify-content-md-end gap-2">
-                                <Button 
-                                  variant="success" 
-                                  size="sm" 
-                                  className="fw-bold px-4 py-2 rounded-3 shadow-sm" 
-                                  onClick={() => handleLocalAcceptOffer(request.id, bestOffer)}
-                                >
-                                  Accept Best Offer ✅
-                                </Button>
-                                <Button 
-                                  variant="outline-danger" 
-                                  size="sm" 
-                                  className="fw-bold px-3 py-2 rounded-3 bg-white" 
-                                  onClick={() => window.confirm("Are you sure?") && handleLocalDeclineOffer(request.id, bestOffer)}
-                                >
-                                  Decline ❌
-                                </Button>
-                              </div>
-                            </Col>
-                          </Row>
-                        </Card.Body>
-                      </Card>
-                    )}
-
-                    {/* All Received Offers List */}
-                    <h6 className="fw-bold text-secondary mb-3">All Received Offers ({rankedOffers.length})</h6>
-                    <ListGroup className="gap-2">
-                      {rankedOffers.map((offer, index) => {
-                        const isTopOffer = bestOffer && index === 0;
-                        return (
-                          <ListGroup.Item 
-                            key={index} 
-                            className={`p-3 border rounded-4 shadow-sm d-flex flex-wrap justify-content-between align-items-center gap-3 ${isTopOffer ? 'border-success border-2 bg-light' : ''}`}
-                          >
-                            <div>
-                              <div className="d-flex flex-wrap align-items-center gap-2 mb-1">
-                                <strong className="text-success fs-5">LKR {offer.offeredPrice}</strong>
-                                <Badge bg="warning" text="dark" className="px-2 py-1">📦 {offer.quantityOffered} kg</Badge>
-                                <Badge bg="info" className="px-2 py-1 text-dark">Delivery: {offer.deliveryDate}</Badge>
-                                <Badge bg="light" text="dark" className="border px-2 py-1">{offer.proximityLabel}</Badge>
-                                {isTopOffer && <Badge bg="success" className="px-3 py-1 rounded-pill">⭐ Best Offer</Badge>}
-                                {!offer.isQuantityValid && (
-                                  <Badge bg="danger" className="px-2 py-1 rounded-pill">⚠️ Exceeds Stock</Badge>
-                                )}
-                              </div>
-                              <div className="small text-dark mt-2"><strong>From:</strong> {offer.sender || 'Registered Partner'}</div>
-                              <div className="small text-muted fst-italic">"{offer.remarks || 'No remarks added'}"</div>
-                            </div>
-                            <div className="d-flex gap-2">
-                              <Button variant="success" size="sm" className="fw-bold px-4 py-2 rounded-3 shadow-sm" onClick={() => handleLocalAcceptOffer(request.id, offer)}>Accept ✅</Button>
-                              <Button variant="outline-danger" size="sm" className="fw-bold px-4 py-2 rounded-3 shadow-sm bg-white" onClick={() => window.confirm("Are you sure?") && handleLocalDeclineOffer(request.id, offer)}>Decline ❌</Button>
-                            </div>
-                          </ListGroup.Item>
-                        );
-                      })}
-                    </ListGroup>
-                  </>
-                ) : (
-                  <div className="text-center py-5 text-muted">No direct offers received yet.</div>
-                )}
-              </div>
-            </Tab>
-
-            <Tab eventKey="accepted" title={`🤝 Accepted Deals (${requestAcceptedDeals.length})`}>
-              <div className="py-2">
-                {requestAcceptedDeals.length > 0 ? (
-                  <div className="table-responsive mt-2">
-                    <Table hover className="align-middle mb-0 text-nowrap border rounded-3">
-                      <thead className="table-light">
-                        <tr>
-                          <th>Partner / Supplier</th>
-                          <th>Agreed Price (LKR)</th>
-                          <th>Quantity</th>
-                          <th>Delivery Date</th>
-                          <th>Remarks</th>
-                          <th>Status</th>
-                          <th>Receipt</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {requestAcceptedDeals.map((deal, idx) => (
-                          <tr key={idx}>
-                            <td className="fw-bold">{deal.sender || 'Registered Partner'}</td>
-                            <td className="fw-bold text-success">LKR {deal.offeredPrice}</td>
-                            <td><Badge bg="warning" text="dark" className="px-2 py-1">📦 {deal.quantityOffered} kg</Badge></td>
-                            <td>{deal.deliveryDate}</td>
-                            <td className="text-muted small">"{deal.remarks || 'No remarks'}"</td>
-                            <td><Badge bg="success" className="px-3 py-1 rounded-pill">Confirmed & Processing 🚚</Badge></td>
-                            <td>
-                              <Button
-                                variant="outline-success"
-                                size="sm"
-                                className="fw-bold rounded-pill px-3"
-                                onClick={() =>
-                                  downloadDealReceipt({
-                                    receiptId: `RCP-${request.id}-${idx + 1}`,
-                                    requestId: request.id,
-                                    productTitle: request.title,
-                                    category: request.category,
-                                    postType: request.requestType,
-                                    postOwnerName: request.buyerName,
-                                    postOwnerLocation: request.location,
-                                    offerSenderName: deal.sender,
-                                    offerSenderLocation: 'Partner District',
-                                    agreedPrice: deal.offeredPrice,
-                                    quantity: deal.quantityOffered,
-                                    deliveryDate: deal.deliveryDate,
-                                    remarks: deal.remarks
-                                  })
-                                }
-                              >
-                                📄 Download Receipt
-                              </Button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </Table>
+                <div>
+                  <h5 className="fw-bold text-dark mb-1">{item.title}</h5>
+                  <p className="text-muted small mb-3">{item.subtitle}</p>
+                  <div className="fw-bold small d-flex align-items-center justify-content-between" style={{ color: item.accentColor }}>
+                    <span>Click to View Details</span>
+                    <span>→</span>
                   </div>
-                ) : (
-                  <div className="text-center py-5 text-muted">No accepted deals yet.</div>
-                )}
-              </div>
-            </Tab>
-          </Tabs>
-        </Card.Body>
-      </Card>
+                </div>
+              </Card.Body>
+            </Card>
+          </Col>
+        ))}
+      </Row>
+
+      {/* 4 Modular Popup Modals */}
+      <MatchedRequestsModal
+        show={activePopup === 'matched'}
+        onHide={() => setActivePopup(null)}
+        request={request}
+        matchedRequestsList={matchedRequestsList}
+        bestMatch={bestMatch}
+        onSelectMatch={handleOpenMatchModal}
+      />
+
+      <ReceivedOffersModal
+        show={activePopup === 'offers'}
+        onHide={() => setActivePopup(null)}
+        request={request}
+        rankedOffers={rankedOffers}
+        bestOffer={bestOffer}
+        onAcceptOffer={handleLocalAcceptOffer}
+        onDeclineOffer={handleLocalDeclineOffer}
+      />
+
+      <SentOffersModal
+        show={activePopup === 'sent'}
+        onHide={() => setActivePopup(null)}
+        request={request}
+        sentOffersFromThisPost={sentOffersFromThisPost}
+      />
+
+      <AcceptedDealsModal
+        show={activePopup === 'accepted'}
+        onHide={() => setActivePopup(null)}
+        request={request}
+        requestAcceptedDeals={requestAcceptedDeals}
+      />
 
       {/* Extracted Edit Post Modal */}
       <EditPostModal
@@ -688,7 +619,11 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
         show={showMatchModal}
         onHide={() => setShowMatchModal(false)}
         targetRequest={activeMatchedRequest}
-        refreshRequests={refreshRequests}
+        sourceRequest={request}
+        refreshRequests={() => {
+          refreshRequests();
+          fetchSingleRequest();
+        }}
         showToast={showToast}
       />
 
@@ -699,13 +634,20 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
         </Modal.Header>
         <Modal.Body className="p-4">
           <p className="text-secondary mb-0">
-            Are you sure you want to delete this post (<strong>{request.id}</strong>)? This action cannot be undone.
+            Are you sure you want to delete this advertisement (<strong>{request.id}</strong>)? This action cannot be undone.
           </p>
         </Modal.Body>
         <Modal.Footer className="bg-light">
           <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>Cancel</Button>
-          <Button variant="danger" className="fw-bold" onClick={() => { setShowDeleteModal(false); handleLocalDelete(request.id); }}>
-            Yes, Delete Post 🗑️
+          <Button
+            variant="danger"
+            className="fw-bold"
+            onClick={() => {
+              setShowDeleteModal(false);
+              handleLocalDelete(request.id);
+            }}
+          >
+            Yes, Delete Advertisement 🗑️
           </Button>
         </Modal.Footer>
       </Modal>

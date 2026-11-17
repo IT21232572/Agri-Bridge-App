@@ -101,7 +101,7 @@ const AddRequest = ({ onAddSuccess, showToast }) => {
     const newReq = {
       ...formData,
       title: finalProduct, 
-      id: `REQ-${Math.floor(100 + Math.random() * 900)}`,
+      id: `REQ-${Date.now().toString().slice(-6)}`,
       quantity: Number(formData.quantity),
       startingPrice: Number(formData.startingPrice),
       status: 'Pending Match',
@@ -150,63 +150,29 @@ const AddRequest = ({ onAddSuccess, showToast }) => {
         {/* Layer 3: Title Content */}
         <div className="p-5 position-relative z-2" style={{ minHeight: '200px' }}>
           <span className="text-success fw-bold small text-uppercase mb-2 d-inline-block">
-            ⚡ ADD POST
+            ⚡ ADD ADVERTISEMENT
           </span>
           <h1 className="fw-bold display-6 text-dark" style={{ letterSpacing: '-0.5px' }}>
-            Create New Post
+            Create New Advertisement
           </h1>
           <p className="text-secondary mb-0 fw-medium">
-            Share your produce, requirement, or supply with the Agri-Bridge community.
+            Share your produce requirement or supply advertisement with the Agri-Bridge community.
           </p>
         </div>
       </div>
 
       <Card className="shadow-sm border-0 rounded-4">
         <Card.Body className="p-5">
-          
-          {/* Stepper / Progress Indicator */}
-          <Row className="mb-5 text-center g-2">
-            <Col>
-              <div className="p-3 rounded-4 d-flex align-items-center justify-content-center gap-3" style={{ backgroundColor: '#eefcf1' }}>
-                <span className="fs-3">✏️</span>
-                <div className="text-start">
-                  <strong className="d-block text-dark">Post Details</strong>
-                  <small className="text-muted">Basic information about your post</small>
-                </div>
-              </div>
-            </Col>
-            <Col className="d-none d-md-flex align-items-center justify-content-center text-muted fs-4">›</Col>
-            <Col>
-              <div className="bg-light p-3 rounded-4 d-flex align-items-center justify-content-center gap-3 border">
-                <span className="fs-3">📦</span>
-                <div className="text-start">
-                  <strong className="d-block text-dark">Product Information</strong>
-                  <small className="text-muted">Quantity, price and description</small>
-                </div>
-              </div>
-            </Col>
-            <Col className="d-none d-md-flex align-items-center justify-content-center text-muted fs-4">›</Col>
-            <Col>
-              <div className="bg-light p-3 rounded-4 d-flex align-items-center justify-content-center gap-3 border">
-                <span className="fs-3">🖼️</span>
-                <div className="text-start">
-                  <strong className="d-block text-dark">Media & Review</strong>
-                  <small className="text-muted">Upload image and publish</small>
-                </div>
-              </div>
-            </Col>
-          </Row>
-
           <Form onSubmit={handleSubmit}>
             
-            {/* Section 1: Post Details */}
+            {/* Section 1: Advertisement Details */}
             <h5 className="fw-bold text-dark mb-3 d-flex align-items-center gap-2">
-              <span>📝</span> Post Details
+              <span>📝</span> Advertisement Type
             </h5>
             <Row className="mb-4">
               <Col md={6}>
                 <Form.Group>
-                  <Form.Label className="fw-semibold small">Post Role Type <span className="text-danger">*</span></Form.Label>
+                  <Form.Label className="fw-semibold small">Advertisement Role Type <span className="text-danger">*</span></Form.Label>
                   <Form.Select
                     name="requestType"
                     value={formData.requestType}
@@ -435,7 +401,7 @@ const AddRequest = ({ onAddSuccess, showToast }) => {
                 ✕ Cancel
               </Button>
               <Button variant="success" type="submit" className="px-4 py-2 fw-bold rounded-3 shadow-sm d-flex align-items-center gap-2">
-                Publish Post
+                Publish Advertisement
               </Button>
             </div>
           </Form>

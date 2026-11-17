@@ -30,10 +30,12 @@ export const RequestProvider = ({ children }) => {
 
   const fetchNotifications = async () => {
     try {
-      const token = localStorage.getItem('token');
+      const storedUser = JSON.parse(localStorage.getItem('user') || 'null');
+      const token = localStorage.getItem('token') || storedUser?.token;
       if (!token) return;
+
       const data = await getNotifications();
-      setNotifications(data);
+      setNotifications(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching notifications:', error);
     }
@@ -86,7 +88,6 @@ export const RequestProvider = ({ children }) => {
 
   useEffect(() => {
     fetchAllData();
-    // Poll notifications every 15 seconds so acceptance alerts appear automatically
     const interval = setInterval(fetchNotifications, 15000);
     return () => clearInterval(interval);
   }, []);
@@ -176,6 +177,7 @@ export const RequestProvider = ({ children }) => {
           return o;
         });
         
+        // 1. Reduce Target Post quantity (post that received the offer)
         const currentQty = Number(targetReq.quantity || 0);
         const acceptedQty = Number(acceptedOffer.quantityOffered || 0);
         const newQuantity = Math.max(0, currentQty - acceptedQty);
@@ -195,7 +197,28 @@ export const RequestProvider = ({ children }) => {
         setRequests(prev => prev.map(r => (r.id === reqId || r._id === reqId ? updatedDoc : r)));
         setInternalSelectedRequest(updatedDoc);
 
-        // Send notification to the offer sender
+        // 2. Also reduce Source Post quantity (if offer was sent from one of sender's posts)
+        if (acceptedOffer.sourceRequestId) {
+          const sourceReq = requests.find(
+            r => r.id === acceptedOffer.sourceRequestId || r._id === acceptedOffer.sourceRequestId
+          );
+
+          if (sourceReq) {
+            const sourceCurrentQty = Number(sourceReq.quantity || 0);
+            const sourceNewQty = Math.max(0, sourceCurrentQty - acceptedQty);
+            const sourceNewStatus = sourceNewQty === 0
+              ? `Fully Fulfilled 🤝 (LKR ${acceptedOffer.offeredPrice})`
+              : `Partial Match 🤝 (${sourceNewQty} kg remaining)`;
+
+            await updateRequest(sourceReq.id, {
+              ...sourceReq,
+              quantity: sourceNewQty,
+              status: sourceNewStatus
+            });
+          }
+        }
+
+        // 3. Send notification to the offer sender
         if (acceptedOffer.senderId || acceptedOffer.sender) {
           await createNotification({
             recipientId: acceptedOffer.senderId || acceptedOffer.sender,
@@ -208,7 +231,7 @@ export const RequestProvider = ({ children }) => {
         
         await fetchAllData();
       }
-      showToast('🎉 Offer Accepted & Receipt Generated!', 'success');
+      showToast('🎉 Offer Accepted & Both Posts Updated!', 'success');
     } catch (error) {
       console.error(error);
       showToast('Failed to accept offer and save deal', 'danger');
@@ -240,6 +263,15 @@ export const RequestProvider = ({ children }) => {
         
         setRequests(prev => prev.map(r => (r.id === reqId || r._id === reqId ? updatedDoc : r)));
         setInternalSelectedRequest(updatedDoc);
+        if (declinedOffer.senderId || declinedOffer.sender) {
+          await createNotification({
+            recipientId: declinedOffer.senderId || '',
+            recipientName: declinedOffer.sender || '',
+            title: '❌ Offer Declined',
+            message: `${targetReq.buyerName || 'Advertisement Owner'} declined your offer for ${targetReq.title} (${targetReq.id}).`,
+            requestId: targetReq.id
+          });
+        }
       }
       showToast('❌ Offer declined.', 'warning');
     } catch (error) {
