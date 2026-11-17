@@ -34,6 +34,15 @@ app.use('/api/requests', requestRoutes);
 const dealRoutes = require('./routes/dealRoutes');
 app.use('/api/deals', dealRoutes);
 
+const userRoutes = require('./routes/userRoutes');
+app.use('/api/users', userRoutes);
+
+const shipmentRoutes = require('./routes/shipmentRoutes');
+app.use('/api/shipments', shipmentRoutes);
+
+const searchRoutes = require('./routes/searchRoutes');
+app.use('/api/search', searchRoutes);
+
 app.listen(PORT, () => {
   console.log(`🚀 Server is running on port ${PORT}`);
 });

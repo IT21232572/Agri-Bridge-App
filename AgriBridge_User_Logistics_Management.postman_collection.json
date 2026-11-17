@@ -1,0 +1,205 @@
+{
+  "info": {
+    "name": "Agri-Bridge - User & Logistics Management API",
+    "_postman_id": "a9b8c7d6-e5f4-4321-8765-abcdef123456",
+    "description": "Complete Postman collection for Agri-Bridge User Access Control, Driver Assignment Algorithm, Real-Time Package Tracking, Proof of Delivery (PoD), and Logistics Report Generator.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. User Account & Role Management",
+      "item": [
+        {
+          "name": "Register New User",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Kasun Jayawardena\",\n  \"email\": \"kasun.buyer@agribridge.lk\",\n  \"password\": \"password123\",\n  \"role\": \"Buyer\",\n  \"phone\": \"+94 77 456 7890\",\n  \"location\": {\n    \"address\": \"45 Colombo Road\",\n    \"city\": \"Colombo\",\n    \"district\": \"Colombo\"\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/users/register", "host": ["{{baseUrl}}"], "path": ["api", "users", "register"] }
+          }
+        },
+        {
+          "name": "User Login (Authenticate)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@agribridge.lk\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/users/login", "host": ["{{baseUrl}}"], "path": ["api", "users", "login"] }
+          }
+        },
+        {
+          "name": "Get Current User Profile",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{authToken}}" }],
+            "url": { "raw": "{{baseUrl}}/api/users/me", "host": ["{{baseUrl}}"], "path": ["api", "users", "me"] }
+          }
+        },
+        {
+          "name": "Update User Profile",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{authToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Admin Manager Updated\",\n  \"phone\": \"+94 77 100 2002\",\n  \"location\": {\n    \"address\": \"HQ Agrarian Tower Level 4\",\n    \"city\": \"Colombo\",\n    \"district\": \"Colombo\"\n  }\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/users/profile", "host": ["{{baseUrl}}"], "path": ["api", "users", "profile"] }
+          }
+        },
+        {
+          "name": "Get All Users (Admin Directory)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/users?role=Buyer", "host": ["{{baseUrl}}"], "path": ["api", "users"], "query": [{ "key": "role", "value": "Buyer" }] }
+          }
+        },
+        {
+          "name": "Manage User Role & Permission Level",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"role\": \"Driver\",\n  \"status\": \"Active\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/users/{{userId}}/role", "host": ["{{baseUrl}}"], "path": ["api", "users", "{{userId}}", "role"] }
+          }
+        },
+        {
+          "name": "Get All Drivers (Fleet View)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/users/drivers/list?availableOnly=true", "host": ["{{baseUrl}}"], "path": ["api", "users", "drivers", "list"], "query": [{ "key": "availableOnly", "value": "true" }] }
+          }
+        },
+        {
+          "name": "Toggle Driver Availability Status",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isAvailable\": true,\n  \"currentStatus\": \"Available\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/users/drivers/{{driverId}}/availability", "host": ["{{baseUrl}}"], "path": ["api", "users", "drivers", "{{driverId}}", "availability"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Logistics, Dispatch & Smart Assignment",
+      "item": [
+        {
+          "name": "Create New Agricultural Shipment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"orderTitle\": \"750kg Fresh Dambulla Cabbage\",\n  \"orderId\": \"REQ-CAB-01\",\n  \"sender\": {\n    \"name\": \"Dambulla Agro Farmers Co-op\",\n    \"phone\": \"+94 66 228 4120\",\n    \"pickupAddress\": \"Economic Centre Block B\",\n    \"city\": \"Dambulla\",\n    \"district\": \"Matale\"\n  },\n  \"recipient\": {\n    \"name\": \"Manning Bulk Buyers Ltd\",\n    \"phone\": \"+94 11 291 0033\",\n    \"deliveryAddress\": \"Stall 44, Manning Market\",\n    \"city\": \"Peliyagoda\",\n    \"district\": \"Gampaha\"\n  },\n  \"packageDetails\": {\n    \"category\": \"Vegetables\",\n    \"quantity\": 750,\n    \"unit\": \"kg\",\n    \"weightKg\": 750,\n    \"specialHandling\": \"Perishable / Keep Cool\"\n  },\n  \"priority\": \"Express\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/shipments", "host": ["{{baseUrl}}"], "path": ["api", "shipments"] }
+          }
+        },
+        {
+          "name": "Get All Shipments (with Filters)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/shipments?status=All&priority=All", "host": ["{{baseUrl}}"], "path": ["api", "shipments"], "query": [{ "key": "status", "value": "All" }, { "key": "priority", "value": "All" }] }
+          }
+        },
+        {
+          "name": "Smart Driver Auto-Assignment Algorithm",
+          "request": {
+            "method": "POST",
+            "url": { "raw": "{{baseUrl}}/api/shipments/{{shipmentId}}/auto-assign", "host": ["{{baseUrl}}"], "path": ["api", "shipments", "{{shipmentId}}", "auto-assign"] }
+          }
+        },
+        {
+          "name": "Manual Driver Assignment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driverId\": \"{{driverId}}\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/shipments/{{shipmentId}}/assign-driver", "host": ["{{baseUrl}}"], "path": ["api", "shipments", "{{shipmentId}}", "assign-driver"] }
+          }
+        },
+        {
+          "name": "Update Shipment Status & Checkpoint Milestone",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"In-Transit\",\n  \"location\": \"Kurunegala Highway Interchange\",\n  \"note\": \"Passed highway checkpoint. Vehicle climate control stable at 12°C.\",\n  \"updatedBy\": \"Driver Sunil Perera\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/shipments/{{shipmentId}}/status", "host": ["{{baseUrl}}"], "path": ["api", "shipments", "{{shipmentId}}", "status"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Real-Time Tracking & Proof of Delivery (PoD)",
+      "item": [
+        {
+          "name": "Track Shipment by Tracking Number",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/shipments/track/TRK-2026-88401", "host": ["{{baseUrl}}"], "path": ["api", "shipments", "track", "TRK-2026-88401"] }
+          }
+        },
+        {
+          "name": "Confirm Proof of Delivery (OTP Verification)",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"otp\": \"492815\",\n  \"recipientSignature\": \"Ruwan Wijesinghe\",\n  \"notes\": \"All mango crates inspected and received in fresh condition.\"\n}"
+            },
+            "url": { "raw": "{{baseUrl}}/api/shipments/{{shipmentId}}/verify-delivery", "host": ["{{baseUrl}}"], "path": ["api", "shipments", "{{shipmentId}}", "verify-delivery"] }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Report Generator & Unified Search",
+      "item": [
+        {
+          "name": "Generate Operational Logistics Analytics Report",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/shipments/reports/analytics", "host": ["{{baseUrl}}"], "path": ["api", "shipments", "reports", "analytics"] }
+          }
+        },
+        {
+          "name": "Unified Search (Users, Drivers, Shipments, Orders)",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/api/search?q=Dambulla", "host": ["{{baseUrl}}"], "path": ["api", "search"], "query": [{ "key": "q", "value": "Dambulla" }] }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:5000" },
+    { "key": "authToken", "value": "" },
+    { "key": "userId", "value": "" },
+    { "key": "driverId", "value": "" },
+    { "key": "shipmentId", "value": "" }
+  ]
+}

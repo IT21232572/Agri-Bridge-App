@@ -1,11 +1,19 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { RequestProvider, useRequestContext } from './context/RequestContext';
+import { AuthProvider } from './context/AuthContext';
 import MainLayout from './components/Layout/MainLayout';
 import AddRequest from './components/RequestManagement/AddRequest';
 import RequestList from './components/RequestManagement/RequestList';
 import MyRequests from './components/RequestManagement/MyRequests';
 import RequestDetail from './components/RequestManagement/RequestDetail';
+
+// Logistics & User Management Components
+import LogisticsDashboard from './components/LogisticsManagement/LogisticsDashboard';
+import ShipmentTracking from './components/LogisticsManagement/ShipmentTracking';
+import LogisticsReports from './components/LogisticsManagement/LogisticsReports';
+import UserDirectory from './components/UserManagement/UserDirectory';
+import ProfilePage from './components/UserManagement/ProfilePage';
 
 const AppRoutes = () => {
   const { 
@@ -29,6 +37,7 @@ const AppRoutes = () => {
   return (
     <MainLayout>
       <Routes>
+        {/* Existing Routes (Maintained 100% Intact) */}
         <Route 
           path="/" 
           element={
@@ -82,6 +91,28 @@ const AppRoutes = () => {
           path="/add" 
           element={<AddRequest onAddSuccess={handleAddRequest} showToast={showToast} />} 
         />
+
+        {/* User & Logistics Management Routes */}
+        <Route 
+          path="/logistics" 
+          element={<LogisticsDashboard showToast={showToast} />} 
+        />
+        <Route 
+          path="/tracking" 
+          element={<ShipmentTracking showToast={showToast} />} 
+        />
+        <Route 
+          path="/logistics-reports" 
+          element={<LogisticsReports showToast={showToast} />} 
+        />
+        <Route 
+          path="/users" 
+          element={<UserDirectory showToast={showToast} />} 
+        />
+        <Route 
+          path="/profile" 
+          element={<ProfilePage showToast={showToast} />} 
+        />
       </Routes>
     </MainLayout>
   );
@@ -89,11 +120,13 @@ const AppRoutes = () => {
 
 function App() {
   return (
-    <RequestProvider>
-      <Router>
-        <AppRoutes />
-      </Router>
-    </RequestProvider>
+    <AuthProvider>
+      <RequestProvider>
+        <Router>
+          <AppRoutes />
+        </Router>
+      </RequestProvider>
+    </AuthProvider>
   );
 }
 
