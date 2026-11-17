@@ -2,6 +2,7 @@ import axios from 'axios';
 
 const API_URL = 'http://localhost:5000/api/requests';
 const DEALS_URL = 'http://localhost:5000/api/deals';
+const NOTIF_URL = 'http://localhost:5000/api/notifications';
 
 // Get all requests
 export const getAllRequests = async () => {
@@ -76,5 +77,21 @@ export const getAllDeals = async () => {
 
 export const createDeal = async (dealData) => {
   const response = await axios.post(DEALS_URL, dealData);
+  return response.data;
+};
+
+
+export const getNotifications = async () => {
+  const response = await axios.get(NOTIF_URL);
+  return response.data;
+};
+
+export const createNotification = async (notifData) => {
+  const response = await axios.post(NOTIF_URL, notifData);
+  return response.data;
+};
+
+export const markNotificationsRead = async () => {
+  const response = await axios.put(`${NOTIF_URL}/mark-read`);
   return response.data;
 };

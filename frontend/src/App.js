@@ -1,11 +1,29 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { RequestProvider, useRequestContext } from './context/RequestContext';
 import MainLayout from './components/Layout/MainLayout';
 import AddRequest from './components/RequestManagement/AddRequest';
 import RequestList from './components/RequestManagement/RequestList';
 import MyRequests from './components/RequestManagement/MyRequests';
 import RequestDetail from './components/RequestManagement/RequestDetail';
+import Login from './components/Auth/Login';
+import Register from './components/Auth/Register';
+import MySentOffers from './components/RequestManagement/MySentOffers';
+
+// Redirects guests to /login and wraps authenticated pages in MainLayout
+const ProtectedLayout = ({ children }) => {
+  const { user, authLoading } = useAuth();
+  if (authLoading) return <div className="text-center mt-5">Checking authentication...</div>;
+  return user ? <MainLayout>{children}</MainLayout> : <Navigate to="/login" replace />;
+};
+
+// Redirects already-logged-in users away from /login and /register
+const PublicAuthRoute = ({ children }) => {
+  const { user, authLoading } = useAuth();
+  if (authLoading) return <div className="text-center mt-5">Loading...</div>;
+  return user ? <Navigate to="/hub" replace /> : children;
+};
 
 const AppRoutes = () => {
   const { 
@@ -27,44 +45,68 @@ const AppRoutes = () => {
   }
 
   return (
-    <MainLayout>
-      <Routes>
-        <Route 
-          path="/" 
-          element={
+    <Routes>
+      {/* Public Auth Routes (No Sidebar or Header) */}
+      <Route 
+        path="/login" 
+        element={
+          <PublicAuthRoute>
+            <Login />
+          </PublicAuthRoute>
+        } 
+      />
+      <Route 
+        path="/register" 
+        element={
+          <PublicAuthRoute>
+            <Register />
+          </PublicAuthRoute>
+        } 
+      />
+
+      {/* Protected App Routes (With Sidebar & Header) */}
+      <Route 
+        path="/" 
+        element={<Navigate to="/hub" replace />} 
+      />
+      <Route 
+        path="/hub" 
+        element={
+          <ProtectedLayout>
             <RequestList 
               requests={requests} 
               refreshRequests={fetchRequests}
               showToast={showToast}
               onNavigateToAdd={() => window.location.href = '/add'}
             />
-          } 
-        />
-        <Route 
-          path="/hub" 
-          element={
-            <RequestList 
-              requests={requests} 
-              refreshRequests={fetchRequests}
-              showToast={showToast}
-              onNavigateToAdd={() => window.location.href = '/add'}
-            />
-          } 
-        />
-        <Route 
-          path="/my-requests" 
-          element={
+          </ProtectedLayout>
+        } 
+      />
+      <Route 
+        path="/my-requests" 
+        element={
+          <ProtectedLayout>
             <MyRequests 
               requests={requests} 
               onDeleteRequest={handleDeleteRequest} 
               onSelectRequest={setSelectedRequest}
               showToast={showToast}
             />
-          } 
-        />
-        <Route 
-          path="/request/:id" 
-          element={
+          </ProtectedLayout>
+        } 
+      />
+      <Route 
+        path="/my-offers" 
+        element={
+          <ProtectedLayout>
+            <MySentOffers requests={requests} />
+          </ProtectedLayout>
+        } 
+      />
+      <Route 
+        path="/request/:id" 
+        element={
+          <ProtectedLayout>
             <RequestDetail 
               allRequests={requests}
               acceptedDeals={acceptedDeals}
@@ -76,24 +118,30 @@ const AppRoutes = () => {
               showToast={showToast}
               refreshRequests={fetchRequests}
             />
-          } 
-        />
-        <Route 
-          path="/add" 
-          element={<AddRequest onAddSuccess={handleAddRequest} showToast={showToast} />} 
-        />
-      </Routes>
-    </MainLayout>
+          </ProtectedLayout>
+        } 
+      />
+      <Route 
+        path="/add" 
+        element={
+          <ProtectedLayout>
+            <AddRequest onAddSuccess={handleAddRequest} showToast={showToast} />
+          </ProtectedLayout>
+        } 
+      />
+    </Routes>
   );
 };
 
 function App() {
   return (
-    <RequestProvider>
-      <Router>
-        <AppRoutes />
-      </Router>
-    </RequestProvider>
+    <AuthProvider>
+      <RequestProvider>
+        <Router>
+          <AppRoutes />
+        </Router>
+      </RequestProvider>
+    </AuthProvider>
   );
 }
 

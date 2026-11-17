@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Container, Table, Badge, Card, Modal, Button, Row, Col, InputGroup, Form, Dropdown } from 'react-bootstrap';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 
 const MyRequests = ({ requests, onDeleteRequest, showToast }) => {
   const navigate = useNavigate();
@@ -30,24 +31,49 @@ const MyRequests = ({ requests, onDeleteRequest, showToast }) => {
   // Helper to calculate active automated matches
   const getMatchCount = (req) => {
     const oppositeType = req.requestType === 'Buyer' ? 'Seller' : 'Buyer';
-    const matches = requests.filter(r => 
-      r.id !== req.id &&
-      r.requestType === oppositeType &&
-      r.category.toLowerCase() === req.category.toLowerCase() &&
-      r.location.toLowerCase() === req.location.toLowerCase() &&
-      !(r.status.includes('Fulfilled') || r.quantity <= 0) // <-- ADD THIS LINE
-    );
+
+    const matches = requests.filter(r => {
+      if (r.id === req.id) return false;
+      if (r.requestType !== oppositeType) return false;
+      if (r.title.trim().toLowerCase() !== req.title.trim().toLowerCase()) return false;
+      if (r.status.includes('Fulfilled') || r.quantity <= 0) return false;
+
+      // Exclude posts by the same user
+      const sameUserById = req.userId && r.userId && String(req.userId) === String(r.userId);
+      const sameLoggedInUser = user && r.userId && String(r.userId) === String(user.id);
+      const sameUserByName =
+        req.buyerName &&
+        r.buyerName &&
+        req.buyerName.trim().toLowerCase() === r.buyerName.trim().toLowerCase();
+
+      if (sameUserById || sameLoggedInUser || sameUserByName) return false;
+
+      // Seller's quantity must be >= Buyer's requested quantity
+      const reqQty = Number(req.quantity) || 0;
+      const matchQty = Number(r.quantity) || 0;
+      const validQty = req.requestType === 'Seller' ? matchQty <= reqQty : matchQty >= reqQty;
+
+      return validQty;
+    });
+
     return matches.length;
   };
 
-  // Stats Calculations
-  const totalPosts = requests.length;
-  const pendingCount = requests.filter(r => r.status.includes('Pending')).length;
-  const partialCount = requests.filter(r => r.status.includes('Partial')).length;
-  const fulfilledCount = requests.filter(r => r.status.includes('Fulfilled') || r.status.includes('Accepted')).length;
+  const { user } = useAuth();
 
-  // Filter Logic
-  const filteredRequests = requests.filter(req => {
+  // Only show posts created by the currently logged-in user
+  const myOwnRequests = requests.filter(
+    (r) => user && (r.userId === user.id || r.buyerName === user.name)
+  );
+
+  // Stats Calculations (based on user's own posts)
+  const totalPosts = myOwnRequests.length;
+  const pendingCount = myOwnRequests.filter(r => r.status.includes('Pending')).length;
+  const partialCount = myOwnRequests.filter(r => r.status.includes('Partial')).length;
+  const fulfilledCount = myOwnRequests.filter(r => r.status.includes('Fulfilled') || r.status.includes('Accepted')).length;
+
+  // Filter Logic (based on user's own posts)
+  const filteredRequests = myOwnRequests.filter(req => {
     const matchesSearch = 
       req.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
       req.id.toLowerCase().includes(searchTerm.toLowerCase()) ||

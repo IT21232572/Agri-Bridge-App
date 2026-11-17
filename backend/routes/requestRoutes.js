@@ -1,6 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const Request = require('../models/Request');
+const { protect } = require('../middleware/authMiddleware');
+
 
 // Get all requests
 router.get('/', async (req, res) => {
@@ -23,17 +25,21 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// Create a new request/post
-router.post('/', async (req, res) => {
+// Inside router.post('/', protect, async (req, res) => { ... })
+router.post('/', protect, async (req, res) => {
   try {
-    const newRequest = new Request(req.body);
+    const newRequest = new Request({
+      ...req.body,
+      userId: req.user.id,
+      buyerName: req.user.name // Overrides "My Profile" with the logged-in user's name
+    });
+
     const savedRequest = await newRequest.save();
     res.status(201).json(savedRequest);
-  } catch (err) {
-    res.status(400).json({ error: err.message });
+  } catch (error) {
+    res.status(400).json({ error: error.message });
   }
 });
-
 // Update a request (Edit Post)
 router.put('/:id', async (req, res) => {
   try {
@@ -64,7 +70,16 @@ router.post('/:id/offers', async (req, res) => {
     const request = await Request.findOne({ id: req.params.id });
     if (!request) return res.status(404).json({ error: 'Request not found' });
 
-    request.offers.push(req.body);
+    request.offers.push({
+      sender: req.body.sender,
+      senderId: req.body.senderId,
+      senderLocation: req.body.senderLocation,
+      offeredPrice: req.body.offeredPrice,
+      quantityOffered: req.body.quantityOffered,
+      deliveryDate: req.body.deliveryDate,
+      remarks: req.body.remarks,
+      status: 'Pending'
+    });
     await request.save();
     res.json(request);
   } catch (err) {

@@ -2,15 +2,23 @@ const mongoose = require('mongoose');
 
 const OfferSchema = new mongoose.Schema({
   sender: { type: String, required: true },
+  senderId: { type: String },
+  senderLocation: { type: String, trim: true },
   offeredPrice: { type: Number, required: true, min: [0, 'Offered price cannot be negative'] },
   quantityOffered: { type: Number, required: true, min: [1, 'Quantity must be at least 1'] },
   deliveryDate: { type: String, required: true },
   remarks: { type: String, trim: true },
+  status: {
+    type: String,
+    enum: ['Pending', 'Accepted', 'Declined'],
+    default: 'Pending'
+  },
   createdAt: { type: Date, default: Date.now }
 });
 
 const RequestSchema = new mongoose.Schema({
   id: { type: String, required: true, unique: true },
+  userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
   requestType: { type: String, enum: ['Buyer', 'Seller'], required: true },
   title: { type: String, required: true, trim: true },
   category: { type: String, enum: ['Vegetables', 'Fruits', 'Seeds', 'Fertilizer', 'Equipment'], required: true },

@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Form, Row, Col, Badge, Button } from 'react-bootstrap';
 import { addOfferToRequest } from '../../services/requestService';
+import { useAuth } from '../../context/AuthContext';
 
 const OfferModal = ({ show, onHide, targetRequest, refreshRequests, showToast }) => {
+  const { user } = useAuth();
   const [offerData, setOfferData] = useState({
     offeredPrice: '',
     quantityOffered: '',
@@ -10,7 +12,6 @@ const OfferModal = ({ show, onHide, targetRequest, refreshRequests, showToast })
     remarks: ''
   });
 
-  // Reset form when modal opens
   useEffect(() => {
     if (show) {
       setOfferData({ offeredPrice: '', quantityOffered: '', deliveryDate: '', remarks: '' });
@@ -27,7 +28,9 @@ const OfferModal = ({ show, onHide, targetRequest, refreshRequests, showToast })
     if (!targetRequest) return;
 
     const newOffer = {
-      sender: 'Current Logged In User',
+      sender: user?.name || 'Registered Farmer',
+      senderId: user?.id || null,
+      senderLocation: user?.district || '',
       offeredPrice: Number(offerData.offeredPrice),
       quantityOffered: Number(offerData.quantityOffered),
       deliveryDate: offerData.deliveryDate,
@@ -36,7 +39,7 @@ const OfferModal = ({ show, onHide, targetRequest, refreshRequests, showToast })
 
     try {
       await addOfferToRequest(targetRequest.id, newOffer);
-      if (showToast) showToast(`Offer of LKR ${offerData.offeredPrice} submitted successfully! 🚀`, 'success');
+      if (showToast) showToast(`Offer of LKR ${offerData.offeredPrice} submitted successfully!`, 'success');
       onHide();
       if (refreshRequests) refreshRequests();
     } catch (error) {
@@ -105,6 +108,7 @@ const OfferModal = ({ show, onHide, targetRequest, refreshRequests, showToast })
                 <Form.Label className="fw-semibold">Your Price (LKR)</Form.Label>
                 <Form.Control
                   type="number"
+                  min="1"
                   name="offeredPrice"
                   placeholder={`E.g. ${targetRequest.startingPrice}`}
                   value={offerData.offeredPrice}
@@ -118,6 +122,8 @@ const OfferModal = ({ show, onHide, targetRequest, refreshRequests, showToast })
                 <Form.Label className="fw-semibold">Quantity (Kg)</Form.Label>
                 <Form.Control
                   type="number"
+                  min="1"
+                  max={targetRequest.requestType === 'Seller' ? targetRequest.quantity : undefined}
                   name="quantityOffered"
                   placeholder="E.g. 500"
                   value={offerData.quantityOffered}

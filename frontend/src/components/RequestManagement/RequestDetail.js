@@ -1,13 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Container, Card, Badge, Button, Tabs, Tab, ListGroup, Row, Col, Table, Modal } from 'react-bootstrap';
 import { getRequestById } from '../../services/requestService';
 import EditPostModal from './EditPostModal';
 import OfferModal from './OfferModal';
+import { useAuth } from '../../context/AuthContext';
+import { downloadDealReceipt } from '../../utils/receiptGenerator';
 
 const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDeclineOffer, onUpdatePost, onDeletePost, showToast, refreshRequests }) => {
   const { id } = useParams(); 
   const navigate = useNavigate();
+  const { user } = useAuth();
   
   const [request, setRequest] = useState(null);
   const [loadingReq, setLoadingReq] = useState(true);
@@ -19,67 +22,57 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
   const [showMatchModal, setShowMatchModal] = useState(false);
   const [activeMatchedRequest, setActiveMatchedRequest] = useState(null);
 
-  const fetchSingleRequest = async () => {
-      try {
-        setLoadingReq(true);
-        const data = await getRequestById(id);
-        setRequest(data);
-        setLoadingReq(false);
-      } catch (error) {
-        console.error('Error loading request details:', error);
-        showToast('Failed to load request details', 'danger');
-        setLoadingReq(false);
-      }
-    };
+  const fetchSingleRequest = useCallback(async () => {
+    try {
+      setLoadingReq(true);
+      const data = await getRequestById(id);
+      setRequest(data);
+      setLoadingReq(false);
+    } catch (error) {
+      console.error('Error loading request details:', error);
+      if (showToast) showToast('Failed to load request details', 'danger');
+      setLoadingReq(false);
+    }
+  }, [id, showToast]);
 
   useEffect(() => {
     if (id) {
       fetchSingleRequest();
     }
-  }, [id]);
+  }, [id, fetchSingleRequest]);
 
   const handleLocalUpdate = async (reqId, updatedData) => {
     try {
-      // Calls your context function to update the backend
       await onUpdatePost(reqId, updatedData);
-      
-      // Re-fetch the fresh data so the detail page UI updates instantly!
-      await fetchSingleRequest(); 
-      
-      setShowEditModal(false); // Close the modal if it isn't closed already
+      await fetchSingleRequest();
+      setShowEditModal(false);
     } catch (error) {
       console.error("Failed to refresh after update", error);
     }
   };
 
-  // Create a custom wrapper for the delete action
   const handleLocalDelete = async (reqId) => {
     try {
-      // 1. Delete the post via context
       await onDeletePost(reqId);
-      
-      // 2. Navigate away from this dead URL back to the list
       navigate('/my-requests'); 
     } catch (error) {
       console.error("Failed to navigate after delete", error);
     }
   };
 
-  // Wrapper for accepting an offer
   const handleLocalAcceptOffer = async (reqId, offer) => {
     try {
       await onAcceptOffer(reqId, offer);
-      await fetchSingleRequest(); // Instantly refresh the UI to show reduced quantity and remove the offer!
+      await fetchSingleRequest();
     } catch (error) {
       console.error("Failed to refresh after accepting offer", error);
     }
   };
 
-  // Wrapper for declining an offer
   const handleLocalDeclineOffer = async (reqId, offer) => {
     try {
       await onDeclineOffer(reqId, offer);
-      await fetchSingleRequest(); // Refresh the UI to remove the declined offer
+      await fetchSingleRequest();
     } catch (error) {
       console.error("Failed to refresh after declining offer", error);
     }
@@ -93,49 +86,167 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
     return <div className="text-center py-5 text-muted">Request not found.</div>;
   }
 
+  // Sri Lankan neighboring district map for "Nearest Post" scoring
+  const nearbyDistricts = {
+    colombo: ['gampaha', 'kalutara'],
+    gampaha: ['colombo', 'kurunegala', 'kegalle', 'kalutara'],
+    kalutara: ['colombo', 'galle', 'ratnapura'],
+    kandy: ['matale', 'nuwara eliya', 'kegalle', 'kurunegala', 'badulla'],
+    matale: ['kandy', 'anuradhapura', 'polonnaruwa', 'kurunegala'],
+    'nuwara eliya': ['kandy', 'badulla', 'ratnapura', 'kegalle'],
+    galle: ['kalutara', 'matara', 'ratnapura'],
+    matara: ['galle', 'hambantota', 'ratnapura'],
+    hambantota: ['matara', 'ratnapura', 'monaragala'],
+    kurunegala: ['gampaha', 'puttalam', 'anuradhapura', 'matale', 'kandy', 'kegalle'],
+    puttalam: ['kurunegala', 'anuradhapura', 'gampaha'],
+    anuradhapura: ['puttalam', 'kurunegala', 'matale', 'polonnaruwa', 'trincomalee', 'vavuniya'],
+    polonnaruwa: ['anuradhapura', 'matale', 'batticaloa', 'trincomalee', 'ampara'],
+    badulla: ['nuwara eliya', 'kandy', 'monaragala', 'ratnapura', 'ampara'],
+    monaragala: ['badulla', 'ampara', 'hambantota', 'ratnapura'],
+    ratnapura: ['kalutara', 'galle', 'matara', 'hambantota', 'monaragala', 'badulla', 'nuwara eliya', 'kegalle'],
+    kegalle: ['gampaha', 'kurunegala', 'kandy', 'nuwara eliya', 'ratnapura'],
+    jaffna: ['kilinochchi'],
+    kilinochchi: ['jaffna', 'mullaitivu', 'mannar'],
+    mannar: ['kilinochchi', 'vavuniya', 'anuradhapura'],
+    vavuniya: ['mannar', 'kilinochchi', 'mullaitivu', 'anuradhapura', 'trincomalee'],
+    mullaitivu: ['kilinochchi', 'vavuniya', 'trincomalee'],
+    trincomalee: ['mullaitivu', 'vavuniya', 'anuradhapura', 'polonnaruwa', 'batticaloa'],
+    batticaloa: ['trincomalee', 'polonnaruwa', 'ampara'],
+    ampara: ['batticaloa', 'polonnaruwa', 'badulla', 'monaragala']
+  };
+
+  const getProximityInfo = (locA = '', locB = '') => {
+    const a = locA.trim().toLowerCase();
+    const b = locB.trim().toLowerCase();
+    if (a === b) return { score: 50, label: '📍 Same District (Nearest)' };
+    if (nearbyDistricts[a]?.includes(b)) return { score: 30, label: '🚗 Nearby District' };
+    return { score: 10, label: `📍 ${locB}` };
+  };
+
   const oppositeType = request.requestType === 'Buyer' ? 'Seller' : 'Buyer';
-  const matchedRequestsList = allRequests.filter(req => 
+
+  // Helper to check if a post belongs to the same owner
+  const isSameOwner = (postA, postB) => {
+    if (postA.userId && postB.userId) {
+      return String(postA.userId) === String(postB.userId);
+    }
+    if (user && postB.userId && String(postB.userId) === String(user.id)) {
+      return true;
+    }
+    return (
+      postA.buyerName &&
+      postB.buyerName &&
+      postA.buyerName.trim().toLowerCase() === postB.buyerName.trim().toLowerCase()
+    );
+  };
+
+  // Helper to check if Seller has enough stock to fulfill Buyer's request
+  const hasEnoughQuantity = (currentReq, candidateReq) => {
+    const currentQty = Number(currentReq.quantity) || 0;
+    const candidateQty = Number(candidateReq.quantity) || 0;
+
+    if (currentReq.requestType === 'Seller') {
+      return candidateQty <= currentQty;
+    }
+    return candidateQty >= currentQty;
+  };
+
+  // 1. Filter by same product, opposite type, different owner, valid quantity, and active stock
+  const rawMatches = allRequests.filter(req =>
     req.id !== request.id &&
     req.requestType === oppositeType &&
-    req.category.toLowerCase() === request.category.toLowerCase() &&
-    req.location.toLowerCase() === request.location.toLowerCase() &&
+    req.title.trim().toLowerCase() === request.title.trim().toLowerCase() &&
+    !isSameOwner(request, req) &&
+    hasEnoughQuantity(request, req) &&
     !(req.status.includes('Fulfilled') || req.quantity <= 0)
   );
 
+  // 2. Score each match by Nearest Location + Best Price
+  const prices = rawMatches.map(m => Number(m.startingPrice) || 0);
+  const minPrice = prices.length ? Math.min(...prices) : 0;
+  const maxPrice = prices.length ? Math.max(...prices) : 0;
+
+  const matchedRequestsList = rawMatches
+    .map(match => {
+      const proximity = getProximityInfo(request.location, match.location);
+      const price = Number(match.startingPrice) || 0;
+
+      let priceScore = 50;
+      if (maxPrice > minPrice) {
+        priceScore = request.requestType === 'Buyer'
+          ? ((maxPrice - price) / (maxPrice - minPrice)) * 50
+          : ((price - minPrice) / (maxPrice - minPrice)) * 50;
+      }
+
+      const totalScore = proximity.score + priceScore;
+      return { ...match, totalScore, proximityLabel: proximity.label };
+    })
+    .sort((a, b) => b.totalScore - a.totalScore);
+
+  const bestMatch = matchedRequestsList.length > 0 ? matchedRequestsList[0] : null;
+
   const requestAcceptedDeals = acceptedDeals.filter(deal => deal.requestId === request.id);
 
-  const getBestOfferId = () => {
-    if (!request.offers || request.offers.length === 0) return null;
-    let bestId = null;
-    let highestScore = -1;
+  // Rank Received Offers using Nearest Location, Best Price, Valid Quantity & Delivery Date
+  const getRankedOffers = () => {
+    if (!request.offers || request.offers.length === 0) return [];
 
-    request.offers.forEach((offer, index) => {
-      let score = 0;
-      const price = parseFloat(offer.offeredPrice);
-
-      if (request.requestType === 'Seller') {
-        score += (price * 0.4); 
-      } else {
-        score += ((1000 / price) * 40); 
-      }
-
-      const targetQty = parseFloat(request.quantity || 100);
-      const offeredQty = parseFloat(offer.quantityOffered || 100);
-      const qtyDifference = Math.abs(targetQty - offeredQty);
-      const qtyScore = Math.max(0, 30 - (qtyDifference * 0.1));
-      score += qtyScore;
-      score += 30;
-
-      if (score > highestScore) {
-        highestScore = score;
-        bestId = index;
-      }
+    // Filter out self-offers if any exist
+    const validOffers = request.offers.filter(offer => {
+      if ((offer.status || 'Pending') !== 'Pending') return false;
+      if (offer.senderId && request.userId && String(offer.senderId) === String(request.userId)) return false;
+      if (offer.sender && request.buyerName && offer.sender.trim().toLowerCase() === request.buyerName.trim().toLowerCase()) return false;
+      return true;
     });
 
-    return bestId;
+    const offerPrices = validOffers.map(o => Number(o.offeredPrice) || 0);
+    const minOfferPrice = offerPrices.length ? Math.min(...offerPrices) : 0;
+    const maxOfferPrice = offerPrices.length ? Math.max(...offerPrices) : 0;
+    const targetQty = Number(request.quantity) || 0;
+
+    return validOffers
+      .map((offer, idx) => {
+        const price = Number(offer.offeredPrice) || 0;
+        const offeredQty = Number(offer.quantityOffered) || 0;
+
+        // Check if quantity is feasible (if Seller, buyer cannot ask for more than available stock)
+        const isQuantityValid = request.requestType === 'Seller'
+          ? offeredQty <= targetQty
+          : offeredQty > 0;
+
+        // 1. Proximity Score (40 pts max)
+        const proximity = offer.senderLocation
+          ? getProximityInfo(request.location, offer.senderLocation)
+          : { score: 20, label: '📍 Partner Location' };
+        const locationScore = (proximity.score / 50) * 40;
+
+        // 2. Best Price Score (40 pts max)
+        let priceScore = 40;
+        if (maxOfferPrice > minOfferPrice) {
+          priceScore = request.requestType === 'Seller'
+            ? ((price - minOfferPrice) / (maxOfferPrice - minOfferPrice)) * 40 // Seller wants highest price
+            : ((maxOfferPrice - price) / (maxOfferPrice - minOfferPrice)) * 40; // Buyer wants lowest price
+        }
+
+        // 3. Quantity & Delivery Score (20 pts max)
+        const qtyRatio = targetQty > 0 ? Math.min(offeredQty, targetQty) / targetQty : 1;
+        const qtyScore = isQuantityValid ? qtyRatio * 20 : -100; // Penalize impossible quantities
+
+        const totalScore = locationScore + priceScore + qtyScore;
+
+        return {
+          ...offer,
+          originalIndex: idx,
+          totalScore,
+          isQuantityValid,
+          proximityLabel: proximity.label
+        };
+      })
+      .sort((a, b) => b.totalScore - a.totalScore);
   };
 
-  const bestOfferIndex = getBestOfferId();
+  const rankedOffers = getRankedOffers();
+  const bestOffer = rankedOffers.length > 0 && rankedOffers[0].isQuantityValid ? rankedOffers[0] : null;
 
   const handleOpenMatchModal = (matchReq) => {
     setActiveMatchedRequest(matchReq);
@@ -298,34 +409,99 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
             <Tab eventKey="matched" title={`⚡ Matched Requests (${matchedRequestsList.length})`}>
               <div className="py-2">
                 {matchedRequestsList.length > 0 ? (
-                  <Row className="g-3 mt-2">
-                    {matchedRequestsList.map((match) => (
-                      <Col md={6} key={match.id}>
-                        <Card className="border shadow-sm h-100 rounded-3" style={{ cursor: 'pointer', transition: 'all 0.2s' }} onClick={() => handleOpenMatchModal(match)}>
-                          <Card.Body>
-                            <div className="d-flex justify-content-between mb-2">
-                              <Badge bg={match.requestType === 'Buyer' ? 'primary' : 'success'}>{match.requestType}</Badge>
-                              <small className="text-muted">ID: {match.id}</small>
+                  <>
+                    {/* Highlighted Top Best Match Banner */}
+                    {bestMatch && (
+                      <Card 
+                        className="border-success border-2 shadow-sm mb-4 rounded-4" 
+                        style={{ backgroundColor: '#f2fbf5', cursor: 'pointer' }}
+                        onClick={() => handleOpenMatchModal(bestMatch)}
+                      >
+                        <Card.Body className="p-4">
+                          <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+                            <div className="d-flex align-items-center gap-2">
+                              <Badge bg="success" className="px-3 py-2 rounded-pill fs-6 shadow-sm">
+                                ⭐ Best Match (Nearest & Best Price)
+                              </Badge>
+                              <Badge bg={bestMatch.requestType === 'Buyer' ? 'primary' : 'dark'} className="px-3 py-2 rounded-pill">
+                                {bestMatch.requestType}
+                              </Badge>
+                              <Badge bg="light" text="dark" className="border px-3 py-2 rounded-pill">
+                                {bestMatch.proximityLabel}
+                              </Badge>
                             </div>
-                            <h5 className="fw-bold">{match.title}</h5>
-                            <div className="d-flex justify-content-between align-items-center mb-2">
-                              <small className="text-muted">📍 {match.location}</small>
-                              <Badge bg="warning" text="dark">📦 {match.quantity || 0} Kg</Badge>
-                            </div>
-                            <div className="d-flex justify-content-between align-items-center">
-                              <strong className="text-success">LKR {match.startingPrice}</strong>
-                              <Badge bg="success">Auto-Matched ✅</Badge>
-                            </div>
-                          </Card.Body>
-                        </Card>
-                      </Col>
-                    ))}
-                  </Row>
+                            <small className="text-muted fw-semibold">ID: {bestMatch.id}</small>
+                          </div>
+
+                          <Row className="align-items-center mt-3 g-3">
+                            <Col md={7}>
+                              <h4 className="fw-bold text-dark mb-1">{bestMatch.title}</h4>
+                              <p className="text-secondary small mb-2">{bestMatch.description}</p>
+                              <div className="d-flex flex-wrap gap-3 small fw-semibold text-muted">
+                                <span>📍 {bestMatch.location}</span>
+                                <span>
+                                  📦 {bestMatch.requestType === 'Buyer' ? 'Needs' : 'Available'}: {bestMatch.quantity || 0} Kg
+                                </span>
+                                <span>👤 {bestMatch.buyerName || 'Farmer'}</span>
+                              </div>
+                            </Col>
+                            <Col md={5} className="text-md-end">
+                              <span className="text-muted small d-block">
+                                {bestMatch.requestType === 'Seller' ? 'Best Asking Price' : 'Best Target Price'}
+                              </span>
+                              <h3 className="fw-bold text-success mb-2">LKR {bestMatch.startingPrice}</h3>
+                              <Button variant="success" size="sm" className="fw-bold px-4 py-2 rounded-3">
+                                Respond to Best Match →
+                              </Button>
+                            </Col>
+                          </Row>
+                        </Card.Body>
+                      </Card>
+                    )}
+
+                    {/* All Matched Posts Grid */}
+                    <h6 className="fw-bold text-secondary mb-3">All Matching Posts ({matchedRequestsList.length})</h6>
+                    <Row className="g-3">
+                      {matchedRequestsList.map((match, idx) => {
+                        const isTopMatch = idx === 0;
+                        return (
+                          <Col md={6} key={match.id}>
+                            <Card 
+                              className={`shadow-sm h-100 rounded-3 ${isTopMatch ? 'border-success border-2' : 'border'}`} 
+                              style={{ cursor: 'pointer', transition: 'all 0.2s' }} 
+                              onClick={() => handleOpenMatchModal(match)}
+                            >
+                              <Card.Body>
+                                <div className="d-flex justify-content-between align-items-center mb-2">
+                                  <div className="d-flex gap-2">
+                                    <Badge bg={match.requestType === 'Buyer' ? 'primary' : 'success'}>{match.requestType}</Badge>
+                                    {isTopMatch && <Badge bg="success">⭐ Best Match</Badge>}
+                                  </div>
+                                  <small className="text-muted">ID: {match.id}</small>
+                                </div>
+                                <h5 className="fw-bold">{match.title}</h5>
+                                <div className="d-flex justify-content-between align-items-center mb-2">
+                                  <small className="text-muted">{match.proximityLabel}</small>
+                                  <Badge bg="warning" text="dark">📦 {match.quantity || 0} Kg</Badge>
+                                </div>
+                                <div className="d-flex justify-content-between align-items-center">
+                                  <strong className="text-success">LKR {match.startingPrice}</strong>
+                                  <Badge bg="light" text="success" className="border border-success">
+                                    {isTopMatch ? 'Top Ranked ✅' : 'Matched'}
+                                  </Badge>
+                                </div>
+                              </Card.Body>
+                            </Card>
+                          </Col>
+                        );
+                      })}
+                    </Row>
+                  </>
                 ) : (
                   <div className="text-center py-5">
                     <div className="mb-3 text-success fs-1">📦</div>
                     <h5 className="fw-bold text-dark">No automatic matches found yet</h5>
-                    <p className="text-muted small mb-4">Compatible posts from the opposite marketplace will appear here.</p>
+                    <p className="text-muted small mb-4">Compatible posts for {request.title} from the opposite marketplace will appear here.</p>
                     <Button variant="success" className="fw-bold px-4 py-2 shadow-sm" style={{ backgroundColor: '#136534', border: 'none', borderRadius: '8px' }} onClick={() => window.location.href = '/hub'}>
                       🔍 Explore Matching Requests
                     </Button>
@@ -334,32 +510,99 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
               </div>
             </Tab>
 
-            <Tab eventKey="offers" title={`📩 Received Offers (${request.offers ? request.offers.length : 0})`}>
+            <Tab eventKey="offers" title={`📩 Received Offers (${rankedOffers.length})`}>
               <div className="py-2">
-                {request.offers && request.offers.length > 0 ? (
-                  <ListGroup className="gap-2 mt-2">
-                    {request.offers.map((offer, index) => {
-                      const isBest = index === bestOfferIndex;
-                      return (
-                        <ListGroup.Item key={index} className={`p-3 border rounded-4 shadow-sm d-flex justify-content-between align-items-center ${isBest ? 'border-success border-2 bg-light' : ''}`}>
-                          <div>
-                            <div className="d-flex align-items-center gap-3 mb-1">
-                              <strong className="text-success fs-5">LKR {offer.offeredPrice}</strong>
-                              <Badge bg="warning" text="dark" className="px-2 py-1">📦 {offer.quantityOffered} kg</Badge>
-                              <Badge bg="info" className="px-2 py-1 text-dark">Delivery: {offer.deliveryDate}</Badge>
-                              {isBest && <Badge bg="success" className="px-3 py-1 rounded-pill">⭐ Best Value</Badge>}
+                {rankedOffers.length > 0 ? (
+                  <>
+                    {/* Highlighted Best Offer Banner */}
+                    {bestOffer && (
+                      <Card className="border-success border-2 shadow-sm mb-4 rounded-4" style={{ backgroundColor: '#f2fbf5' }}>
+                        <Card.Body className="p-4">
+                          <div className="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                            <div className="d-flex flex-wrap align-items-center gap-2">
+                              <Badge bg="success" className="px-3 py-2 rounded-pill fs-6 shadow-sm">
+                                ⭐ Best Offer (Nearest, Best Price & Valid Qty)
+                              </Badge>
+                              <Badge bg="light" text="dark" className="border px-3 py-2 rounded-pill">
+                                {bestOffer.proximityLabel}
+                              </Badge>
+                              <Badge bg="info" className="px-3 py-2 rounded-pill text-dark">
+                                📅 Delivery: {bestOffer.deliveryDate}
+                              </Badge>
                             </div>
-                            <div className="small text-dark mt-2"><strong>From:</strong> {offer.sender || 'Registered Partner'}</div>
-                            <div className="small text-muted fst-italic">"{offer.remarks || 'No remarks added'}"</div>
                           </div>
-                          <div className="d-flex gap-2">
-                            <Button variant="success" size="sm" className="fw-bold px-4 py-2 rounded-3 shadow-sm" onClick={() => handleLocalAcceptOffer(request.id, offer)}>Accept ✅</Button>
-                            <Button variant="outline-danger" size="sm" className="fw-bold px-4 py-2 rounded-3 shadow-sm bg-white" onClick={() => window.confirm("Are you sure?") && handleLocalDeclineOffer(request.id, offer)}>Decline ❌</Button>
-                          </div>
-                        </ListGroup.Item>
-                      );
-                    })}
-                  </ListGroup>
+
+                          <Row className="align-items-center g-3">
+                            <Col md={7}>
+                              <h5 className="fw-bold text-dark mb-1">From: {bestOffer.sender || 'Registered Partner'}</h5>
+                              <p className="text-muted fst-italic small mb-2">
+                                "{bestOffer.remarks || 'No remarks added'}"
+                              </p>
+                              <div className="d-flex flex-wrap gap-3 small fw-semibold text-secondary">
+                                <span>📦 Offered Quantity: {bestOffer.quantityOffered} Kg</span>
+                                <span>📅 Expected Delivery: {bestOffer.deliveryDate}</span>
+                              </div>
+                            </Col>
+                            <Col md={5} className="text-md-end">
+                              <span className="text-muted small d-block">Best Offered Price</span>
+                              <h3 className="fw-bold text-success mb-3">LKR {bestOffer.offeredPrice}</h3>
+                              <div className="d-flex justify-content-md-end gap-2">
+                                <Button 
+                                  variant="success" 
+                                  size="sm" 
+                                  className="fw-bold px-4 py-2 rounded-3 shadow-sm" 
+                                  onClick={() => handleLocalAcceptOffer(request.id, bestOffer)}
+                                >
+                                  Accept Best Offer ✅
+                                </Button>
+                                <Button 
+                                  variant="outline-danger" 
+                                  size="sm" 
+                                  className="fw-bold px-3 py-2 rounded-3 bg-white" 
+                                  onClick={() => window.confirm("Are you sure?") && handleLocalDeclineOffer(request.id, bestOffer)}
+                                >
+                                  Decline ❌
+                                </Button>
+                              </div>
+                            </Col>
+                          </Row>
+                        </Card.Body>
+                      </Card>
+                    )}
+
+                    {/* All Received Offers List */}
+                    <h6 className="fw-bold text-secondary mb-3">All Received Offers ({rankedOffers.length})</h6>
+                    <ListGroup className="gap-2">
+                      {rankedOffers.map((offer, index) => {
+                        const isTopOffer = bestOffer && index === 0;
+                        return (
+                          <ListGroup.Item 
+                            key={index} 
+                            className={`p-3 border rounded-4 shadow-sm d-flex flex-wrap justify-content-between align-items-center gap-3 ${isTopOffer ? 'border-success border-2 bg-light' : ''}`}
+                          >
+                            <div>
+                              <div className="d-flex flex-wrap align-items-center gap-2 mb-1">
+                                <strong className="text-success fs-5">LKR {offer.offeredPrice}</strong>
+                                <Badge bg="warning" text="dark" className="px-2 py-1">📦 {offer.quantityOffered} kg</Badge>
+                                <Badge bg="info" className="px-2 py-1 text-dark">Delivery: {offer.deliveryDate}</Badge>
+                                <Badge bg="light" text="dark" className="border px-2 py-1">{offer.proximityLabel}</Badge>
+                                {isTopOffer && <Badge bg="success" className="px-3 py-1 rounded-pill">⭐ Best Offer</Badge>}
+                                {!offer.isQuantityValid && (
+                                  <Badge bg="danger" className="px-2 py-1 rounded-pill">⚠️ Exceeds Stock</Badge>
+                                )}
+                              </div>
+                              <div className="small text-dark mt-2"><strong>From:</strong> {offer.sender || 'Registered Partner'}</div>
+                              <div className="small text-muted fst-italic">"{offer.remarks || 'No remarks added'}"</div>
+                            </div>
+                            <div className="d-flex gap-2">
+                              <Button variant="success" size="sm" className="fw-bold px-4 py-2 rounded-3 shadow-sm" onClick={() => handleLocalAcceptOffer(request.id, offer)}>Accept ✅</Button>
+                              <Button variant="outline-danger" size="sm" className="fw-bold px-4 py-2 rounded-3 shadow-sm bg-white" onClick={() => window.confirm("Are you sure?") && handleLocalDeclineOffer(request.id, offer)}>Decline ❌</Button>
+                            </div>
+                          </ListGroup.Item>
+                        );
+                      })}
+                    </ListGroup>
+                  </>
                 ) : (
                   <div className="text-center py-5 text-muted">No direct offers received yet.</div>
                 )}
@@ -379,6 +622,7 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
                           <th>Delivery Date</th>
                           <th>Remarks</th>
                           <th>Status</th>
+                          <th>Receipt</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -390,6 +634,32 @@ const RequestDetail = ({ allRequests, acceptedDeals, onBack, onAcceptOffer, onDe
                             <td>{deal.deliveryDate}</td>
                             <td className="text-muted small">"{deal.remarks || 'No remarks'}"</td>
                             <td><Badge bg="success" className="px-3 py-1 rounded-pill">Confirmed & Processing 🚚</Badge></td>
+                            <td>
+                              <Button
+                                variant="outline-success"
+                                size="sm"
+                                className="fw-bold rounded-pill px-3"
+                                onClick={() =>
+                                  downloadDealReceipt({
+                                    receiptId: `RCP-${request.id}-${idx + 1}`,
+                                    requestId: request.id,
+                                    productTitle: request.title,
+                                    category: request.category,
+                                    postType: request.requestType,
+                                    postOwnerName: request.buyerName,
+                                    postOwnerLocation: request.location,
+                                    offerSenderName: deal.sender,
+                                    offerSenderLocation: 'Partner District',
+                                    agreedPrice: deal.offeredPrice,
+                                    quantity: deal.quantityOffered,
+                                    deliveryDate: deal.deliveryDate,
+                                    remarks: deal.remarks
+                                  })
+                                }
+                              >
+                                📄 Download Receipt
+                              </Button>
+                            </td>
                           </tr>
                         ))}
                       </tbody>

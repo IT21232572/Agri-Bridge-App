@@ -6,7 +6,10 @@ import {
   updateRequest, 
   deleteRequest,
   getAllDeals, 
-  createDeal
+  createDeal,
+  getNotifications,
+  createNotification,
+  markNotificationsRead
 } from '../services/requestService';
 
 const RequestContext = createContext();
@@ -16,12 +19,33 @@ export const useRequestContext = () => useContext(RequestContext);
 export const RequestProvider = ({ children }) => {
   const [requests, setRequests] = useState([]);
   const [acceptedDeals, setAcceptedDeals] = useState([]);
-  const [selectedRequest, setInternalSelectedRequest] = useState(null); // Renamed to avoid recursion trap
+  const [notifications, setNotifications] = useState([]);
+  const [selectedRequest, setInternalSelectedRequest] = useState(null);
   const [loading, setLoading] = useState(true);
   const [toastInfo, setToastInfo] = useState({ show: false, message: '', bg: 'success' });
 
   const showToast = (message, bg = 'success') => {
     setToastInfo({ show: true, message, bg });
+  };
+
+  const fetchNotifications = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const data = await getNotifications();
+      setNotifications(data);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    }
+  };
+
+  const handleMarkNotificationsRead = async () => {
+    try {
+      await markNotificationsRead();
+      setNotifications(prev => prev.map(n => ({ ...n, isRead: true })));
+    } catch (error) {
+      console.error('Error marking notifications read:', error);
+    }
   };
 
   const fetchAllData = async () => {
@@ -32,6 +56,7 @@ export const RequestProvider = ({ children }) => {
       ]);
       setRequests(requestsData);
       setAcceptedDeals(dealsData);
+      await fetchNotifications();
       
       if (selectedRequest) {
         const freshCurrent = requestsData.find(r => r.id === selectedRequest.id || r._id === selectedRequest._id);
@@ -49,6 +74,7 @@ export const RequestProvider = ({ children }) => {
     try {
       const data = await getAllRequests();
       setRequests(data);
+      await fetchNotifications();
       if (selectedRequest) {
         const freshCurrent = data.find(r => r.id === selectedRequest.id || r._id === selectedRequest._id);
         if (freshCurrent) setInternalSelectedRequest(freshCurrent);
@@ -60,28 +86,26 @@ export const RequestProvider = ({ children }) => {
 
   useEffect(() => {
     fetchAllData();
+    // Poll notifications every 15 seconds so acceptance alerts appear automatically
+    const interval = setInterval(fetchNotifications, 15000);
+    return () => clearInterval(interval);
   }, []);
 
-  // Safe wrapper for selecting or clearing requests
   const handleSelectRequest = async (reqItem) => {
     if (!reqItem) {
-      setInternalSelectedRequest(null); // Safely clears state
+      setInternalSelectedRequest(null);
       return;
     }
-
     try {
       const targetId = reqItem.id || reqItem._id;
       const freshData = await getRequestById(targetId);
       setInternalSelectedRequest(freshData);
     } catch (error) {
-      console.error('Error fetching single request:', error);
       setInternalSelectedRequest(reqItem);
     }
   };
 
-  const clearSelectedRequest = () => {
-    setInternalSelectedRequest(null);
-  };
+  const clearSelectedRequest = () => setInternalSelectedRequest(null);
 
   const handleAddRequest = async (newReq) => {
     try {
@@ -124,7 +148,7 @@ export const RequestProvider = ({ children }) => {
       const newDealPayload = {
         requestId: reqId,
         requestTitle: targetReq?.title || 'Crop Request',
-        sender: acceptedOffer.sender || 'Current Logged In User',
+        sender: acceptedOffer.sender || 'Registered Partner',
         offeredPrice: Number(acceptedOffer.offeredPrice),
         quantityOffered: Number(acceptedOffer.quantityOffered),
         deliveryDate: acceptedOffer.deliveryDate,
@@ -135,11 +159,22 @@ export const RequestProvider = ({ children }) => {
       setAcceptedDeals(prev => [savedDeal, ...prev]);
 
       if (targetReq) {
-        const updatedOffers = (targetReq.offers || []).filter(o => 
-          !(o.offeredPrice === acceptedOffer.offeredPrice && 
-            o.quantityOffered === acceptedOffer.quantityOffered && 
-            o.remarks === acceptedOffer.remarks)
-        );
+        // Keep the offer in history and update its status to 'Accepted'
+        let matchedOnce = false;
+        const updatedOffers = (targetReq.offers || []).map(o => {
+          const isMatch =
+            !matchedOnce &&
+            (o.status || 'Pending') === 'Pending' &&
+            o.sender === acceptedOffer.sender &&
+            Number(o.offeredPrice) === Number(acceptedOffer.offeredPrice) &&
+            Number(o.quantityOffered) === Number(acceptedOffer.quantityOffered);
+
+          if (isMatch) {
+            matchedOnce = true;
+            return { ...o, status: 'Accepted' };
+          }
+          return o;
+        });
         
         const currentQty = Number(targetReq.quantity || 0);
         const acceptedQty = Number(acceptedOffer.quantityOffered || 0);
@@ -157,13 +192,23 @@ export const RequestProvider = ({ children }) => {
         };
 
         const updatedDoc = await updateRequest(reqId, payload);
-        
         setRequests(prev => prev.map(r => (r.id === reqId || r._id === reqId ? updatedDoc : r)));
         setInternalSelectedRequest(updatedDoc);
+
+        // Send notification to the offer sender
+        if (acceptedOffer.senderId || acceptedOffer.sender) {
+          await createNotification({
+            recipientId: acceptedOffer.senderId || acceptedOffer.sender,
+            recipientName: acceptedOffer.sender,
+            title: 'Offer Accepted! 🎉',
+            message: `${targetReq.buyerName || 'Post Owner'} accepted your offer of LKR ${acceptedOffer.offeredPrice}/kg (${acceptedOffer.quantityOffered} kg) for ${targetReq.title} (${targetReq.id}).`,
+            requestId: targetReq.id
+          });
+        }
         
         await fetchAllData();
       }
-      showToast('🎉 Offer Accepted!', 'success');
+      showToast('🎉 Offer Accepted & Receipt Generated!', 'success');
     } catch (error) {
       console.error(error);
       showToast('Failed to accept offer and save deal', 'danger');
@@ -174,12 +219,21 @@ export const RequestProvider = ({ children }) => {
     try {
       const targetReq = requests.find(r => r.id === reqId || r._id === reqId);
       if (targetReq) {
-        // Fix: Compare the actual values to filter out the correct offer
-        const updatedOffers = targetReq.offers.filter(o => 
-          !(o.offeredPrice === declinedOffer.offeredPrice && 
-            o.quantityOffered === declinedOffer.quantityOffered && 
-            o.remarks === declinedOffer.remarks)
-        );
+        let matchedOnce = false;
+        const updatedOffers = (targetReq.offers || []).map(o => {
+          const isMatch =
+            !matchedOnce &&
+            (o.status || 'Pending') === 'Pending' &&
+            o.sender === declinedOffer.sender &&
+            Number(o.offeredPrice) === Number(declinedOffer.offeredPrice) &&
+            Number(o.quantityOffered) === Number(declinedOffer.quantityOffered);
+
+          if (isMatch) {
+            matchedOnce = true;
+            return { ...o, status: 'Declined' };
+          }
+          return o;
+        });
         
         const payload = { ...targetReq, offers: updatedOffers };
         const updatedDoc = await updateRequest(reqId, payload);
@@ -197,6 +251,8 @@ export const RequestProvider = ({ children }) => {
     <RequestContext.Provider value={{
       requests,
       acceptedDeals,
+      notifications,
+      handleMarkNotificationsRead,
       selectedRequest,
       setSelectedRequest: handleSelectRequest,
       clearSelectedRequest,
