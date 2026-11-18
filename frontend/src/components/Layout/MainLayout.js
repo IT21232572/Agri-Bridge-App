@@ -35,65 +35,136 @@ const MainLayout = ({ children }) => {
     }
   };
 
+  const navItems = [
+    {
+      path: '/hub',
+      label: '🛒 Request & Supply Hub',
+      isActive: location.pathname === '/hub' || location.pathname === '/'
+    },
+    {
+      path: '/my-requests',
+      label: 'My Requests & Matches',
+      isActive: location.pathname === '/my-requests'
+    },
+    {
+      path: '/my-offers',
+      label: 'Sent Offers',
+      isActive: location.pathname === '/my-offers'
+    }
+  ];
+
   return (
     <div className="d-flex bg-light" style={{ height: '100vh', overflow: 'hidden' }}>
       
       {/* Sidebar Navigation */}
       <div 
-        className="d-flex flex-column text-white p-3 shadow" 
-        style={{ width: '280px', backgroundColor: '#0f3d24', height: '100vh', flexShrink: 0 }}
+        className="d-flex flex-column text-white py-4 px-3 shadow position-relative" 
+        style={{ width: '280px', backgroundColor: '#0b321d', height: '100vh', flexShrink: 0 }}
       >
-        <div className="d-flex align-items-center mb-4 px-2 pt-2">
-          <span className="fs-4 fw-bold text-white d-flex align-items-center gap-2">
-            🌱 Agri-Bridge
+        {/* Brand Header with Rounded Orange Icon Box */}
+        <div className="d-flex align-items-center gap-3 mb-4 px-2 pt-1">
+          <div
+            className="d-flex align-items-center justify-content-center shadow-sm"
+            style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '12px',
+              background: 'linear-gradient(135deg, #fb923c 0%, #f97316 100%)',
+              fontSize: '1.25rem',
+              flexShrink: 0
+            }}
+          >
+            🌱
+          </div>
+          <span className="fs-4 fw-bold text-white" style={{ letterSpacing: '-0.3px' }}>
+            Agri-Bridge
           </span>
         </div>
 
-        <Nav className="flex-column gap-2 mb-auto">
-          <Nav.Link 
-            as={Link} 
-            to="/hub" 
-            onClick={handleNavClick}
-            className={`text-white rounded py-2 px-3 fw-semibold ${location.pathname === '/hub' || location.pathname === '/' ? 'bg-success shadow-sm' : ''}`}
-            style={{ transition: 'all 0.2s' }}
-          >
-            🛒 Request & Supply Hub
-          </Nav.Link>
+        {/* Navigation Links */}
+        <Nav className="flex-column gap-2 mt-2">
+          {navItems.map((item) => (
+            <div key={item.path} className="position-relative">
+              {/* Left-edge vertical accent bar for active item */}
+              {item.isActive && (
+                <span
+                  style={{
+                    position: 'absolute',
+                    left: '-16px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    width: '5px',
+                    height: '26px',
+                    backgroundColor: '#f97316',
+                    borderRadius: '0 6px 6px 0',
+                    boxShadow: '0 0 10px rgba(249, 115, 22, 0.7)'
+                  }}
+                />
+              )}
 
-          <Nav.Link 
-            as={Link} 
-            to="/my-requests" 
-            onClick={handleNavClick}
-            className={`text-white rounded py-2 px-3 fw-semibold ${location.pathname === '/my-requests' ? 'bg-success shadow-sm' : ''}`}
-            style={{ transition: 'all 0.2s' }}
-          >
-            My Requests & Matches
-          </Nav.Link>
-
-          <Nav.Link 
-            as={Link} 
-            to="/my-offers" 
-            onClick={handleNavClick}
-            className={`text-white rounded py-2 px-3 fw-semibold ${location.pathname === '/my-offers' ? 'bg-success shadow-sm' : ''}`}
-            style={{ transition: 'all 0.2s' }}
-          >
-            Sent Offers
-          </Nav.Link>
-
-          <Nav.Link 
-            as={Link} 
-            to="/add" 
-            onClick={handleNavClick}
-            className={`text-white rounded py-2 px-3 fw-semibold ${location.pathname === '/add' ? 'bg-success shadow-sm' : ''}`}
-            style={{ transition: 'all 0.2s' }}
-          >
-            ➕ Create Advertisement
-          </Nav.Link>
+              <Nav.Link
+                as={Link}
+                to={item.path}
+                onClick={handleNavClick}
+                className="px-3 py-3 fw-semibold d-flex align-items-center"
+                style={{
+                  borderRadius: '12px',
+                  color: item.isActive ? '#ffffff' : 'rgba(255, 255, 255, 0.85)',
+                  backgroundColor: item.isActive ? 'rgba(255, 255, 255, 0.14)' : 'transparent',
+                  transition: 'all 0.2s ease'
+                }}
+                onMouseEnter={(e) => {
+                  if (!item.isActive) {
+                    e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.07)';
+                    e.currentTarget.style.color = '#ffffff';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!item.isActive) {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.color = 'rgba(255, 255, 255, 0.85)';
+                  }
+                }}
+              >
+                {item.label}
+              </Nav.Link>
+            </div>
+          ))}
         </Nav>
 
-        <hr className="text-secondary" />
-        <div className="px-2 pb-2">
-          <small className="text-white-50 d-block">Help & Support</small>
+        {/* High-Visibility Create Advertisement CTA Button */}
+        <div className="mt-4 mb-auto">
+          <Button
+            as={Link}
+            to="/add"
+            onClick={handleNavClick}
+            className="w-100 py-3 fw-bold text-white border-0 d-flex align-items-center justify-content-center gap-2"
+            style={{
+              borderRadius: '14px',
+              background: location.pathname === '/add'
+                ? 'linear-gradient(135deg, #ea580c 0%, #c2410c 100%)'
+                : 'linear-gradient(135deg, #fb923c 0%, #f97316 100%)',
+              boxShadow: '0 6px 18px rgba(249, 115, 22, 0.38)',
+              fontSize: '0.98rem',
+              transition: 'transform 0.18s ease, box-shadow 0.18s ease'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 10px 24px rgba(249, 115, 22, 0.52)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 6px 18px rgba(249, 115, 22, 0.38)';
+            }}
+          >
+            <span className="fs-5 lh-1">+</span>
+            <span>Create Advertisement</span>
+          </Button>
+        </div>
+
+        <hr style={{ borderColor: 'rgba(255, 255, 255, 0.15)' }} />
+        <div className="px-2 pb-1">
+          <small className="text-white-50 d-block">Help &amp; Support</small>
           <span className="small fw-semibold text-white">support@agribridge.lk</span>
         </div>
       </div>

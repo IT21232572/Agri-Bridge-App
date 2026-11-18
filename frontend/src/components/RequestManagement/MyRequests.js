@@ -5,9 +5,10 @@ import { useAuth } from '../../context/AuthContext';
 
 const MyRequests = ({ requests, onDeleteRequest, showToast }) => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [requestToDelete, setRequestToDelete] = useState(null);
-  
+
   // Filter & Search State
   const [filter, setFilter] = useState('All');
   const [searchTerm, setSearchTerm] = useState('');
@@ -22,13 +23,13 @@ const MyRequests = ({ requests, onDeleteRequest, showToast }) => {
   const handleConfirmDelete = () => {
     if (requestToDelete) {
       onDeleteRequest(requestToDelete.id);
-      if (showToast) showToast(`Request ${requestToDelete.id} cancelled successfully.`, 'danger');
+      if (showToast) showToast(`Advertisement ${requestToDelete.id} cancelled successfully.`, 'danger');
     }
     setShowDeleteModal(false);
     setRequestToDelete(null);
   };
 
-  // Helper to calculate active automated matches
+  // Helper to calculate active automated matches (supports both full & partial quantities)
   const getMatchCount = (req) => {
     const oppositeType = req.requestType === 'Buyer' ? 'Seller' : 'Buyer';
 
@@ -36,7 +37,7 @@ const MyRequests = ({ requests, onDeleteRequest, showToast }) => {
       if (r.id === req.id) return false;
       if (r.requestType !== oppositeType) return false;
       if (r.title.trim().toLowerCase() !== req.title.trim().toLowerCase()) return false;
-      if (r.status.includes('Fulfilled') || r.quantity <= 0) return false;
+      if (r.status.includes('Fulfilled') || Number(r.quantity) <= 0) return false;
 
       // Exclude posts by the same user
       const sameUserById = req.userId && r.userId && String(req.userId) === String(r.userId);
@@ -48,37 +49,30 @@ const MyRequests = ({ requests, onDeleteRequest, showToast }) => {
 
       if (sameUserById || sameLoggedInUser || sameUserByName) return false;
 
-      // Seller's quantity must be >= Buyer's requested quantity
-      const reqQty = Number(req.quantity) || 0;
-      const matchQty = Number(r.quantity) || 0;
-      const validQty = req.requestType === 'Seller' ? matchQty <= reqQty : matchQty >= reqQty;
-
-      return validQty;
+      return true;
     });
 
     return matches.length;
   };
 
-  const { user } = useAuth();
-
-  // Only show posts created by the currently logged-in user
+  // Only show advertisements created by the currently logged-in user
   const myOwnRequests = requests.filter(
     (r) => user && (r.userId === user.id || r.buyerName === user.name)
   );
 
-  // Stats Calculations (based on user's own posts)
+  // Stats Calculations (based on user's own advertisements)
   const totalPosts = myOwnRequests.length;
   const pendingCount = myOwnRequests.filter(r => r.status.includes('Pending')).length;
   const partialCount = myOwnRequests.filter(r => r.status.includes('Partial')).length;
   const fulfilledCount = myOwnRequests.filter(r => r.status.includes('Fulfilled') || r.status.includes('Accepted')).length;
 
-  // Filter Logic (based on user's own posts)
+  // Filter Logic (based on user's own advertisements)
   const filteredRequests = myOwnRequests.filter(req => {
-    const matchesSearch = 
-      req.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    const matchesSearch =
+      req.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
       req.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
       req.category.toLowerCase().includes(searchTerm.toLowerCase());
-    
+
     let matchesFilter = true;
     if (filter === 'Pending') matchesFilter = req.status.includes('Pending');
     if (filter === 'Partial') matchesFilter = req.status.includes('Partial');
@@ -87,124 +81,138 @@ const MyRequests = ({ requests, onDeleteRequest, showToast }) => {
     return matchesSearch && matchesFilter;
   });
 
+  const statCards = [
+    {
+      label: 'Total Advertisements',
+      value: totalPosts,
+      icon: '📄',
+      iconBg: '#ede9fe',
+      borderColor: '#8b5cf6'
+    },
+    {
+      label: 'Pending Match',
+      value: pendingCount,
+      icon: '🤝',
+      iconBg: '#fef3c7',
+      borderColor: '#f59e0b'
+    },
+    {
+      label: 'Partial Matches',
+      value: partialCount,
+      icon: '📚',
+      iconBg: '#dbeafe',
+      borderColor: '#3b82f6'
+    },
+    {
+      label: 'Fully Fulfilled',
+      value: fulfilledCount,
+      icon: '✅',
+      iconBg: '#dcfce7',
+      borderColor: '#16a34a'
+    }
+  ];
+
+  const filterTabs = [
+    { key: 'All', icon: '⊞', label: `All Advertisements (${totalPosts})` },
+    { key: 'Pending', icon: '🕒', label: `Pending Match (${pendingCount})` },
+    { key: 'Partial', icon: '📚', label: `Partial Match (${partialCount})` },
+    { key: 'Fulfilled', icon: '✅', label: `Fully Fulfilled (${fulfilledCount})` }
+  ];
+
   return (
     <Container fluid className="px-0 mb-5">
-      
-      {/* Scenic Header & Stats Section */}
-      <Card className="border-0 shadow-sm mb-4 position-relative overflow-hidden rounded-4 bg-white">
-        <div 
-          className="position-absolute w-100 h-100"
-          style={{
-            background: 'url("/farm-banner.png")',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            //opacity: 0.9,
-            zIndex: 0
-          }}
-        />
-        {/* <div 
-          className="position-absolute w-100 h-100"
-          style={{
-            background: 'linear-gradient(180deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0.6) 100%)',
-            zIndex: 1
-          }}
-        /> */}
-        
-        <div className="p-4 position-relative" style={{ zIndex: 2 }}>
-          <div className="mb-4">
-            <span className="text-muted small">🏠 My Requests & Matches</span>
-            <h3 className="fw-bold text-dark mt-2 mb-1">My Requests & Automated Match Status</h3>
-            <p className="text-secondary small mb-0">Track your posts, offers, and matches in one place.</p>
-          </div>
 
-          <Row className="g-3">
-            <Col md={3}>
-              <div className="bg-white p-3 rounded-4 shadow-sm border-0 d-flex align-items-center gap-3 h-100">
-                <div className="bg-light text-success rounded p-2 fs-4">📄</div>
-                <div>
-                  <span className="text-muted small fw-semibold d-block">Total Posts</span>
-                  <h4 className="text-dark fw-bold mb-0">{totalPosts}</h4>
-                </div>
-              </div>
-            </Col>
-            <Col md={3}>
-              <div className="bg-white p-3 rounded-4 shadow-sm border-0 d-flex align-items-center gap-3 h-100">
-                <div className="bg-warning bg-opacity-10 text-warning rounded p-2 fs-4">🤝</div>
-                <div>
-                  <span className="text-muted small fw-semibold d-block">Pending Match</span>
-                  <h4 className="text-dark fw-bold mb-0">{pendingCount}</h4>
-                </div>
-              </div>
-            </Col>
-            <Col md={3}>
-              <div className="bg-white p-3 rounded-4 shadow-sm border-0 d-flex align-items-center gap-3 h-100">
-                <div className="bg-primary bg-opacity-10 text-primary rounded p-2 fs-4">📚</div>
-                <div>
-                  <span className="text-muted small fw-semibold d-block">Partial Matches</span>
-                  <h4 className="text-dark fw-bold mb-0">{partialCount}</h4>
-                </div>
-              </div>
-            </Col>
-            <Col md={3}>
-              <div className="bg-white p-3 rounded-4 shadow-sm border-0 d-flex align-items-center gap-3 h-100">
-                <div className="bg-success bg-opacity-10 text-success rounded p-2 fs-4">✅</div>
-                <div>
-                  <span className="text-muted small fw-semibold d-block">Fully Fulfilled</span>
-                  <h4 className="text-dark fw-bold mb-0">{fulfilledCount}</h4>
-                </div>
-              </div>
-            </Col>
-          </Row>
+      {/* Deep Green Gradient Hero Banner */}
+      <div
+        className="rounded-4 p-4 p-md-5 text-white position-relative overflow-hidden shadow-sm"
+        style={{
+          background:
+            'radial-gradient(circle at 85% 45%, rgba(234, 179, 8, 0.45) 0%, rgba(22, 101, 52, 0.2) 38%, transparent 65%), linear-gradient(120deg, #0b3d22 0%, #14532d 55%, #1e6b38 100%)',
+          paddingBottom: '5.5rem'
+        }}
+      >
+        <div className="d-flex align-items-center gap-2 small fw-semibold mb-2" style={{ color: '#bbf7d0' }}>
+          <span>🏠</span>
+          <span>My Requests &amp; Matches</span>
         </div>
-      </Card>
+        <h2 className="fw-bold display-6 mb-2" style={{ letterSpacing: '-0.5px' }}>
+          My Requests &amp; Automated Match Status
+        </h2>
+        <p className="mb-4 text-white-50 fw-medium">
+          Track your advertisements, offers, and matches in one place.
+        </p>
+      </div>
+
+      {/* 4 Overlapping Stat Cards with Color Bottom Accents */}
+      <Row className="g-3 px-3 px-md-4 position-relative" style={{ marginTop: '-48px', zIndex: 2 }}>
+        {statCards.map((stat, idx) => (
+          <Col sm={6} lg={3} key={idx}>
+            <Card
+              className="border-0 rounded-4 bg-white h-100"
+              style={{
+                borderBottom: `4px solid ${stat.borderColor}`,
+                boxShadow: '0 8px 20px rgba(0, 0, 0, 0.08)'
+              }}
+            >
+              <Card.Body className="p-3 p-xl-4 d-flex align-items-center gap-3">
+                <div
+                  className="rounded-3 d-flex align-items-center justify-content-center fs-4 flex-shrink-0"
+                  style={{
+                    width: '48px',
+                    height: '48px',
+                    backgroundColor: stat.iconBg
+                  }}
+                >
+                  {stat.icon}
+                </div>
+                <div>
+                  <span className="text-muted small fw-semibold d-block">{stat.label}</span>
+                  <h3 className="text-dark fw-bold mb-0 lh-1 mt-1">{stat.value}</h3>
+                </div>
+              </Card.Body>
+            </Card>
+          </Col>
+        ))}
+      </Row>
 
       {/* Main Table Card */}
-      <Card className="shadow-sm border-0 rounded-4 overflow-hidden">
-        
+      <Card
+        className="border-0 rounded-4 overflow-hidden bg-white mt-4"
+        style={{ boxShadow: '0 6px 24px rgba(0, 0, 0, 0.06)' }}
+      >
         {/* Filters and Search Bar */}
-        <Card.Header className="bg-white py-3 border-bottom d-flex flex-wrap justify-content-between align-items-center gap-3">
-          <div className="d-flex gap-2">
-            <Button 
-              variant={filter === 'All' ? 'success' : 'light'} 
-              size="sm" 
-              className={`rounded-pill px-3 fw-semibold ${filter === 'All' ? '' : 'text-muted border'}`}
-              onClick={() => setFilter('All')}
-            >
-              ⊞ All Posts ({totalPosts})
-            </Button>
-            <Button 
-              variant={filter === 'Pending' ? 'success' : 'light'} 
-              size="sm" 
-              className={`rounded-pill px-3 fw-semibold ${filter === 'Pending' ? '' : 'text-muted border'}`}
-              onClick={() => setFilter('Pending')}
-            >
-              🕒 Pending Match ({pendingCount})
-            </Button>
-            <Button 
-              variant={filter === 'Partial' ? 'success' : 'light'} 
-              size="sm" 
-              className={`rounded-pill px-3 fw-semibold ${filter === 'Partial' ? '' : 'text-muted border'}`}
-              onClick={() => setFilter('Partial')}
-            >
-              📚 Partial Match ({partialCount})
-            </Button>
-            <Button 
-              variant={filter === 'Fulfilled' ? 'success' : 'light'} 
-              size="sm" 
-              className={`rounded-pill px-3 fw-semibold ${filter === 'Fulfilled' ? '' : 'text-muted border'}`}
-              onClick={() => setFilter('Fulfilled')}
-            >
-              ✅ Fully Fulfilled ({fulfilledCount})
-            </Button>
+        <Card.Header className="bg-white p-4 border-0 d-flex flex-wrap justify-content-between align-items-center gap-3">
+          <div className="d-flex flex-wrap gap-2">
+            {filterTabs.map((tab) => {
+              const isActive = filter === tab.key;
+              return (
+                <Button
+                  key={tab.key}
+                  size="sm"
+                  className="rounded-pill px-3 py-2 fw-semibold d-flex align-items-center gap-2"
+                  style={{
+                    backgroundColor: isActive ? '#15803d' : '#ffffff',
+                    color: isActive ? '#ffffff' : '#4b5563',
+                    border: isActive ? '1px solid #15803d' : '1px solid #e5e7eb',
+                    boxShadow: isActive ? '0 4px 12px rgba(21, 128, 61, 0.25)' : 'none',
+                    transition: 'all 0.15s ease'
+                  }}
+                  onClick={() => setFilter(tab.key)}
+                >
+                  <span>{tab.icon}</span>
+                  <span>{tab.label}</span>
+                </Button>
+              );
+            })}
           </div>
 
-          <div style={{ width: '250px' }}>
-            <InputGroup size="sm">
-              <InputGroup.Text className="bg-white text-muted border-end-0">🔍</InputGroup.Text>
+          <div style={{ minWidth: '250px', maxWidth: '300px', flexGrow: 1 }}>
+            <InputGroup className="rounded-pill overflow-hidden border bg-light">
+              <InputGroup.Text className="bg-light text-muted border-0 ps-3">🔍</InputGroup.Text>
               <Form.Control
                 type="text"
                 placeholder="Search by Req ID, title..."
-                className="border-start-0 shadow-none ps-0"
+                className="bg-light border-0 shadow-none ps-0 small py-2"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
               />
@@ -212,19 +220,19 @@ const MyRequests = ({ requests, onDeleteRequest, showToast }) => {
           </div>
         </Card.Header>
 
-        <Card.Body className="p-0">
-          <div className="table-responsive">
+        <Card.Body className="px-4 pb-4 pt-0">
+          <div className="table-responsive rounded-3">
             <Table hover className="align-middle mb-0 text-nowrap" style={{ cursor: 'pointer' }}>
               <thead>
                 <tr>
-                  <th className="py-3 px-4 border-0 text-dark small fw-bold" style={{ backgroundColor: '#afeebd' }}>Req ID</th>
-                  <th className="py-3 border-0 text-dark small fw-bold" style={{ backgroundColor: '#afeebd' }}>Role</th>
-                  <th className="py-3 border-0 text-dark small fw-bold" style={{ backgroundColor: '#afeebd' }}>Title & Category</th>
-                  <th className="py-3 border-0 text-dark small fw-bold" style={{ backgroundColor: '#afeebd' }}>Location</th>
-                  <th className="py-3 border-0 text-dark small fw-bold" style={{ backgroundColor: '#afeebd' }}>Valid Until</th>
-                  <th className="py-3 border-0 text-dark small fw-bold" style={{ backgroundColor: '#afeebd' }}>Offers & Matches</th>
-                  <th className="py-3 border-0 text-dark small fw-bold" style={{ backgroundColor: '#afeebd' }}>Status</th>
-                  <th className="py-3 px-4 border-0 text-dark small fw-bold text-center" style={{ backgroundColor: '#afeebd' }}>Action</th>
+                  <th className="py-3 px-4 border-0 text-dark small fw-bold rounded-start" style={{ backgroundColor: '#dcfce7' }}>Req ID</th>
+                  <th className="py-3 border-0 text-dark small fw-bold" style={{ backgroundColor: '#dcfce7' }}>Role</th>
+                  <th className="py-3 border-0 text-dark small fw-bold" style={{ backgroundColor: '#dcfce7' }}>Title &amp; Category</th>
+                  <th className="py-3 border-0 text-dark small fw-bold" style={{ backgroundColor: '#dcfce7' }}>Location</th>
+                  <th className="py-3 border-0 text-dark small fw-bold" style={{ backgroundColor: '#dcfce7' }}>Valid Until</th>
+                  <th className="py-3 border-0 text-dark small fw-bold" style={{ backgroundColor: '#dcfce7' }}>Offers &amp; Matches</th>
+                  <th className="py-3 border-0 text-dark small fw-bold" style={{ backgroundColor: '#dcfce7' }}>Status</th>
+                  <th className="py-3 px-4 border-0 text-dark small fw-bold text-center rounded-end" style={{ backgroundColor: '#dcfce7' }}>Action</th>
                 </tr>
               </thead>
               <tbody>
@@ -232,69 +240,109 @@ const MyRequests = ({ requests, onDeleteRequest, showToast }) => {
                   filteredRequests.map((req) => {
                     const matchCount = getMatchCount(req);
                     const offerCount = req.offers ? req.offers.length : 0;
+                    const isBuyer = req.requestType === 'Buyer';
 
-                    // Status Badge Styling logic
+                    // Status Badge Styling & Display Label logic
                     let statusBg = 'warning';
-                    let statusClass = 'rounded-pill px-3 py-2 bg-opacity-25 border border-warning text-dark';
-                    let statusIcon = '⏳ ';
+                    let statusClass = 'rounded-pill px-3 py-2 text-dark fw-semibold';
+                    let statusIcon = '🟡 ';
+                    let statusLabel = req.status;
 
                     if (req.status.includes('Fulfilled') || req.status.includes('Accepted')) {
                       statusBg = 'success';
-                      statusClass = 'rounded-pill px-3 py-2 text-white';
+                      statusClass = 'rounded-pill px-3 py-2 text-white fw-semibold';
                       statusIcon = '✅ ';
                     } else if (req.status.includes('Partial')) {
-                      statusBg = 'info'; // Changes Partial Match to Blue
-                      statusClass = 'rounded-pill px-3 py-2 bg-opacity-25 border border-info text-dark';
+                      statusBg = 'info';
+                      statusClass = 'rounded-pill px-3 py-2 text-dark fw-semibold';
                       statusIcon = '🔄 ';
+                    } else if (req.status.includes('Pending') && matchCount > 0) {
+                      statusBg = 'primary';
+                      statusClass = 'rounded-pill px-3 py-2 text-white fw-semibold';
+                      statusIcon = '⚡ ';
+                      statusLabel = 'Matches Found';
                     }
 
                     return (
-                      <tr 
-                        key={req.id} 
-                        style={{ cursor: 'pointer' }}
+                      <tr
+                        key={req.id}
+                        style={{ cursor: 'pointer', borderBottom: '1px solid #f1f5f9' }}
                         onClick={() => navigate(`/request/${req.id}`)}
                       >
-                        <td className="px-4 fw-semibold text-secondary small">{req.id}</td>
-                        <td>
-                          <Badge 
-                            bg={req.requestType === 'Buyer' ? 'primary' : 'success'} 
-                            className="bg-opacity-10 rounded-pill px-3 py-2"
-                            text={req.requestType === 'Buyer' ? 'primary' : 'success'}
+                        <td className="px-4 py-3 fw-semibold text-secondary small">{req.id}</td>
+                        <td className="py-3">
+                          <span
+                            className="px-3 py-1 rounded-pill fw-semibold small d-inline-flex align-items-center gap-1"
+                            style={{
+                              backgroundColor: isBuyer ? '#eff6ff' : '#ecfdf5',
+                              color: isBuyer ? '#2563eb' : '#15803d',
+                              border: `1px solid ${isBuyer ? '#dbeafe' : '#d1fae5'}`
+                            }}
                           >
-                            {req.requestType === 'Buyer' ? '🛒 Buyer' : '🚜 Seller'}
-                          </Badge>
+                            <span>{isBuyer ? '🛒' : '🚜'}</span>
+                            <span>{req.requestType}</span>
+                          </span>
                         </td>
-                        <td>
-                          <div className="fw-bold text-success">{req.title}</div>
+                        <td className="py-3">
+                          <div className="fw-bold" style={{ color: '#15803d' }}>{req.title}</div>
                           <small className="text-muted">{req.category}</small>
                         </td>
-                        <td className="small">📍 {req.location}</td>
-                        <td className="small">📅 {req.biddingEndTime}</td>
-                        <td>
+                        <td className="py-3 small fw-medium">📍 {req.location}</td>
+                        <td className="py-3 small fw-medium text-secondary">📅 {req.biddingEndTime}</td>
+                        <td className="py-3">
                           <div className="d-flex align-items-center gap-2">
-                            <Badge bg="light" text="dark" className="border fw-normal px-2 py-1">
-                              📩 {offerCount} Offers
-                            </Badge>
-                            <Badge bg="success" className="bg-opacity-10 border border-success border-opacity-25 text-success fw-bold px-2 py-1">
-                              ⚡ {matchCount} Matches
-                            </Badge>
+                            <span
+                              className="px-3 py-1 rounded-pill small fw-semibold d-inline-flex align-items-center gap-1"
+                              style={{
+                                backgroundColor: offerCount > 0 ? '#e0f2fe' : '#f1f5f9',
+                                color: offerCount > 0 ? '#0369a1' : '#475569'
+                              }}
+                            >
+                              <span>📩</span>
+                              <span>{offerCount} Offers</span>
+                            </span>
+
+                            <span
+                              className="px-3 py-1 rounded-pill small fw-bold d-inline-flex align-items-center gap-1"
+                              style={{
+                                backgroundColor: matchCount > 0 ? '#f97316' : '#f1f5f9',
+                                color: matchCount > 0 ? '#ffffff' : '#64748b',
+                                boxShadow:
+                                  matchCount > 0
+                                    ? '0 3px 10px rgba(249, 115, 22, 0.32)'
+                                    : 'none'
+                              }}
+                            >
+                              <span>⚡</span>
+                              <span>{matchCount} Matches</span>
+                            </span>
                           </div>
                         </td>
-                        <td>
+                        <td className="py-3">
                           <Badge bg={statusBg} className={statusClass}>
-                            {statusIcon}{req.status}
+                            {statusIcon}{statusLabel}
                           </Badge>
                         </td>
-                        <td className="px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                        <td className="px-4 py-3 text-center" onClick={(e) => e.stopPropagation()}>
                           <Dropdown drop="start">
-                            <Dropdown.Toggle variant="light" size="sm" className="bg-transparent border-0 shadow-none fs-5 text-muted p-0">
+                            <Dropdown.Toggle
+                              variant="light"
+                              size="sm"
+                              className="rounded-circle border d-inline-flex align-items-center justify-content-center p-0 shadow-none text-muted"
+                              style={{ width: '34px', height: '34px', backgroundColor: '#ffffff' }}
+                            >
                               ⋮
                             </Dropdown.Toggle>
                             <Dropdown.Menu className="shadow border-0 rounded-3">
-                              <Dropdown.Item onClick={() => navigate(`/request/${req.id}`)}>📄 View Details</Dropdown.Item>
+                              <Dropdown.Item onClick={() => navigate(`/request/${req.id}`)}>
+                                📄 View Details
+                              </Dropdown.Item>
                               <Dropdown.Divider />
-                              <Dropdown.Item className="text-danger fw-semibold" onClick={(e) => handleOpenDeleteModal(e, req)}>
-                                🗑️ Cancel Request
+                              <Dropdown.Item
+                                className="text-danger fw-semibold"
+                                onClick={(e) => handleOpenDeleteModal(e, req)}
+                              >
+                                🗑️ Cancel Advertisement
                               </Dropdown.Item>
                             </Dropdown.Menu>
                           </Dropdown>
@@ -305,7 +353,7 @@ const MyRequests = ({ requests, onDeleteRequest, showToast }) => {
                 ) : (
                   <tr>
                     <td colSpan="8" className="text-center py-5 text-muted">
-                      No posts found matching your filters.
+                      No advertisements found matching your filters.
                     </td>
                   </tr>
                 )}
@@ -322,15 +370,15 @@ const MyRequests = ({ requests, onDeleteRequest, showToast }) => {
         </Modal.Header>
         <Modal.Body className="p-4">
           <p className="text-secondary mb-0">
-            Are you sure you want to cancel request <strong>{requestToDelete?.id}</strong> ({requestToDelete?.title})? This action cannot be undone.
+            Are you sure you want to cancel advertisement <strong>{requestToDelete?.id}</strong> ({requestToDelete?.title})? This action cannot be undone.
           </p>
         </Modal.Body>
         <Modal.Footer className="bg-light">
           <Button variant="secondary" onClick={() => setShowDeleteModal(false)}>
-            Keep Post
+            Keep Advertisement
           </Button>
           <Button variant="danger" className="fw-bold" onClick={handleConfirmDelete}>
-            Yes, Cancel Request 🗑️
+            Yes, Cancel Advertisement 🗑️
           </Button>
         </Modal.Footer>
       </Modal>

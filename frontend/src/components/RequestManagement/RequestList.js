@@ -29,12 +29,11 @@ const RequestList = ({ requests, onNavigateToAdd, refreshRequests, showToast }) 
   return (
     <Container fluid className="px-0">
       {/* Scenic Banner Card */}
-      {/* Scenic Banner Card */}
       <Card 
         className="border-0 shadow-sm mb-4 position-relative overflow-hidden" 
         style={{ 
           borderRadius: '12px',
-          background: 'url("/farm-banner.png")', // Moved background here
+          background: 'url("/farm-banner.png")',
           backgroundSize: 'cover',
           backgroundPosition: 'center',
         }}
@@ -43,8 +42,8 @@ const RequestList = ({ requests, onNavigateToAdd, refreshRequests, showToast }) 
           <div className="d-flex justify-content-between align-items-start">
             <div style={{ color: '#0f3d24' }}>
               <span className="small fw-bold text-uppercase tracking-wider opacity-75">AGRI-BRIDGE</span>
-              <h2 className="fw-bold mb-1 display-6" style={{ color: '#0f3d24' }}>Request & Supply Hub</h2>
-              <p className="mb-0 opacity-90 small fw-semibold">Two-way marketplace connecting Buyers & Sellers automatically.</p>
+              <h2 className="fw-bold mb-1 display-6" style={{ color: '#0f3d24' }}>Request &amp; Supply Hub</h2>
+              <p className="mb-0 opacity-90 small fw-semibold">Two-way marketplace connecting Buyers &amp; Sellers automatically.</p>
             </div>
             <Button 
               variant="success" 
@@ -52,13 +51,12 @@ const RequestList = ({ requests, onNavigateToAdd, refreshRequests, showToast }) 
               style={{ backgroundColor: '#136534', border: 'none', borderRadius: '8px' }}
               onClick={onNavigateToAdd}
             >
-              + Post Buyer / Seller
+              + Create Advertisement
             </Button>
           </div>
         </div>
 
         {/* Filter Bar */}
-        {/* Removed 'bg-white' and 'border-top'. Added a slight translucent glass effect for readability! */}
         <Card.Body className="p-3" style={{ backgroundColor: 'rgba(255, 255, 255, 0.4)', backdropFilter: 'blur(5px)' }}>
           <Row className="g-3 align-items-center">
             <Col md={5}>
@@ -79,7 +77,7 @@ const RequestList = ({ requests, onNavigateToAdd, refreshRequests, showToast }) 
                 value={selectedType}
                 onChange={(e) => setSelectedType(e.target.value)}
               >
-                <option value="All">👥 All Post Types (Buyers & Sellers)</option>
+                <option value="All">👥 All Advertisement Types (Buyers &amp; Sellers)</option>
                 <option value="Buyer">🛒 Buyers Only</option>
                 <option value="Seller">🚜 Sellers Only</option>
               </Form.Select>
@@ -105,67 +103,153 @@ const RequestList = ({ requests, onNavigateToAdd, refreshRequests, showToast }) 
       {/* Product Cards Grid */}
       <Row className="g-4">
         {filteredRequests.length > 0 ? (
-          filteredRequests.map((req) => (
-            <Col md={4} key={req.id || req._id}>
-              <Card className="h-100 shadow-sm border-0 rounded-4 overflow-hidden bg-white">
-                <Card.Body className="d-flex flex-column p-4">
-                  {req.image && (
-                    <div className="mb-3 position-relative">
-                      <img 
-                        src={req.image} 
-                        alt={req.title} 
-                        className="rounded-3 w-100 shadow-sm" 
-                        style={{ height: '150px', objectFit: 'cover' }} 
+          filteredRequests.map((req) => {
+            const isBuyer = req.requestType === 'Buyer';
+            const accentColor = isBuyer ? '#0d6efd' : '#136534';
+            const softBoxBg = isBuyer ? '#f2f7ff' : '#f1faf4';
+
+            return (
+              <Col md={6} lg={4} key={req.id || req._id}>
+                <Card
+                  className="h-100 rounded-4 overflow-hidden bg-white"
+                  style={{
+                    border: '1px solid rgba(0, 0, 0, 0.08)',
+                    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.06)',
+                    transition: 'transform 0.18s ease, box-shadow 0.18s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-5px)';
+                    e.currentTarget.style.boxShadow = '0 12px 26px rgba(0, 0, 0, 0.12)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.06)';
+                  }}
+                >
+                  {/* Top Full-Bleed Image with Floating Badges */}
+                  <div className="position-relative bg-light" style={{ height: '175px' }}>
+                    {req.image ? (
+                      <img
+                        src={req.image}
+                        alt={req.title}
+                        className="w-100 h-100"
+                        style={{ objectFit: 'cover' }}
                       />
-                    </div>
-                  )}
+                    ) : (
+                      <div
+                        className="w-100 h-100 d-flex align-items-center justify-content-center fs-1"
+                        style={{ backgroundColor: softBoxBg }}
+                      >
+                        🌱
+                      </div>
+                    )}
 
-                  <div className="d-flex justify-content-between align-items-center mb-2">
-                    <Badge bg={req.requestType === 'Buyer' ? 'primary' : 'success'} className="px-2 py-1 rounded-pill">
-                      {req.requestType === 'Buyer' ? '🛒 Buyer' : '🚜 Seller'}
-                    </Badge>
-                    <span className="text-muted small">🏷️ {req.category}</span>
-                  </div>
-
-                  <Card.Title className="fw-bold mb-1 text-dark fs-5">{req.title}</Card.Title>
-                  <div className="d-flex justify-content-between align-items-center mb-3">
-                    <small className="text-muted">📍 {req.location}</small>
-                    <Badge bg="warning" text="dark" className="px-2 py-1">📦 {req.quantity || 0} Kg</Badge>
-                  </div>
-
-                  <Card.Text className="text-secondary small flex-grow-1 mb-3">
-                    {req.description}
-                  </Card.Text>
-                  
-                  <div className="bg-light p-3 rounded-3 mb-3 border-0">
-                    <div className="d-flex justify-content-between align-items-center mb-1">
-                      <span className="small text-muted">
-                        {req.requestType === 'Buyer' ? 'Target Price:' : 'Asking Price:'}
-                      </span>
-                      <strong className="text-success fs-6">LKR {req.startingPrice}</strong>
-                    </div>
-                    <div className="d-flex justify-content-between align-items-center">
-                      <span className="small text-muted">Valid Until:</span>
-                      <small className="fw-semibold text-danger">📅 {req.biddingEndTime}</small>
-                    </div>
-                  </div>
-
-                  <div>
-                    <Button 
-                      variant="outline-success" 
-                      className="w-100 fw-bold py-2 rounded-3"
-                      onClick={() => handleOpenModal(req)}
+                    {/* Top-Left: Role Badge */}
+                    <Badge
+                      bg={isBuyer ? 'primary' : 'success'}
+                      className="position-absolute top-0 start-0 m-3 px-3 py-2 rounded-pill shadow-sm d-flex align-items-center gap-1"
+                      style={{ fontSize: '0.78rem', letterSpacing: '0.2px' }}
                     >
-                      View Details & Respond →
-                    </Button>
+                      <span>{isBuyer ? '🛒' : '🚜'}</span>
+                      <span>{req.requestType}</span>
+                    </Badge>
+
+                    {/* Top-Right: Quantity Pill */}
+                    <Badge
+                      bg="warning"
+                      text="dark"
+                      className="position-absolute top-0 end-0 m-3 px-3 py-2 rounded-pill shadow-sm fw-bold"
+                      style={{ fontSize: '0.78rem' }}
+                    >
+                      📦 {req.quantity || 0} Kg
+                    </Badge>
                   </div>
-                </Card.Body>
-              </Card>
-            </Col>
-          ))
+
+                  {/* Card Content Body */}
+                  <Card.Body className="p-4 d-flex flex-column justify-content-between">
+                    <div>
+                      {/* Category Pill */}
+                      <span
+                        className="d-inline-block px-2 py-1 rounded-pill fw-semibold mb-2"
+                        style={{
+                          fontSize: '0.75rem',
+                          backgroundColor: '#f1f3f5',
+                          color: '#495057'
+                        }}
+                      >
+                        🏷️ {req.category}
+                      </span>
+
+                      {/* Product Title & Location */}
+                      <h5 className="fw-bold text-dark mb-1">{req.title}</h5>
+                      <div className="text-secondary small fw-medium mb-2">
+                        📍 {req.location}
+                      </div>
+
+                      {/* Short Description */}
+                      <p
+                        className="text-muted small mb-3"
+                        style={{
+                          display: '-webkit-box',
+                          WebkitLineClamp: 2,
+                          WebkitBoxOrient: 'vertical',
+                          overflow: 'hidden',
+                          minHeight: '38px'
+                        }}
+                      >
+                        {req.description}
+                      </p>
+                    </div>
+
+                    <div>
+                      {/* Left-Bordered Price & Expiry Box */}
+                      <div
+                        className="p-3 rounded-3 mb-3"
+                        style={{
+                          backgroundColor: softBoxBg,
+                          borderLeft: `4px solid ${accentColor}`
+                        }}
+                      >
+                        <div className="d-flex justify-content-between align-items-center mb-1">
+                          <span className="text-secondary small fw-medium">
+                            {isBuyer ? 'Target Price:' : 'Asking Price:'}
+                          </span>
+                          <span
+                            className="fw-bold fs-6"
+                            style={{ color: accentColor }}
+                          >
+                            LKR {req.startingPrice}
+                          </span>
+                        </div>
+
+                        <div className="d-flex justify-content-between align-items-center">
+                          <span className="text-secondary small fw-medium">
+                            Valid Until:
+                          </span>
+                          <span className="text-danger small fw-semibold">
+                            📅 {req.biddingEndTime}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Solid High-Contrast Action Button */}
+                      <Button
+                        variant={isBuyer ? 'primary' : 'success'}
+                        className="w-100 py-2 fw-bold rounded-3 shadow-sm d-flex align-items-center justify-content-center gap-2"
+                        onClick={() => handleOpenModal(req)}
+                      >
+                        <span>View Details &amp; Respond</span>
+                        <span>→</span>
+                      </Button>
+                    </div>
+                  </Card.Body>
+                </Card>
+              </Col>
+            );
+          })
         ) : (
           <Col xs={12} className="text-center py-5">
-            <h5 className="text-muted">No posts found matching your filter.</h5>
+            <h5 className="text-muted">No advertisements found matching your filter.</h5>
           </Col>
         )}
       </Row>

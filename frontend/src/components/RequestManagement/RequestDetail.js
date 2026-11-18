@@ -9,6 +9,7 @@ import ReceivedOffersModal from './ReceivedOffersModal';
 import SentOffersModal from './SentOffersModal';
 import AcceptedDealsModal from './AcceptedDealsModal';
 import { useAuth } from '../../context/AuthContext';
+import { getUnitByCategory } from '../../utils/unitHelper';
 
 const RequestDetail = ({
   allRequests,
@@ -132,9 +133,10 @@ const RequestDetail = ({
   const getProximityInfo = (locA = '', locB = '') => {
     const a = locA.trim().toLowerCase();
     const b = locB.trim().toLowerCase();
-    if (a === b) return { score: 50, label: '📍 Same District (Nearest)' };
-    if (nearbyDistricts[a]?.includes(b)) return { score: 30, label: '🚗 Nearby District' };
-    return { score: 10, label: `📍 ${locB}` };
+    const displayLoc = locB.trim();
+    if (a === b) return { score: 50, label: `📍 ${displayLoc} (Same District)` };
+    if (nearbyDistricts[a]?.includes(b)) return { score: 30, label: `🚗 ${displayLoc} (Nearby District)` };
+    return { score: 10, label: `📍 ${displayLoc}` };
   };
 
   const oppositeType = request.requestType === 'Buyer' ? 'Seller' : 'Buyer';
@@ -149,43 +151,62 @@ const RequestDetail = ({
     );
   };
 
-  const hasEnoughQuantity = (currentReq, candidateReq) => {
-    const currentQty = Number(currentReq.quantity) || 0;
-    const candidateQty = Number(candidateReq.quantity) || 0;
-    return currentReq.requestType === 'Seller' ? candidateQty <= currentQty : candidateQty >= currentQty;
+  const hasAvailableQuantity = (candidateReq) => {
+    return (Number(candidateReq.quantity) || 0) > 0;
   };
 
-  // 1. Matched Requests
+  // 1. Matched Requests (supports full & partial matches, prioritizing full qty coverage)
   const rawMatches = allRequests.filter(
     req =>
       req.id !== request.id &&
       req.requestType === oppositeType &&
       req.title.trim().toLowerCase() === request.title.trim().toLowerCase() &&
       !isSameOwner(request, req) &&
-      hasEnoughQuantity(request, req) &&
-      !(req.status.includes('Fulfilled') || req.quantity <= 0)
+      hasAvailableQuantity(req) &&
+      !(req.status.includes('Fulfilled') || Number(req.quantity) <= 0)
   );
 
   const prices = rawMatches.map(m => Number(m.startingPrice) || 0);
   const minPrice = prices.length ? Math.min(...prices) : 0;
   const maxPrice = prices.length ? Math.max(...prices) : 0;
+  const currentReqQty = Number(request.quantity) || 0;
 
   const matchedRequestsList = rawMatches
     .map(match => {
       const proximity = getProximityInfo(request.location, match.location);
       const price = Number(match.startingPrice) || 0;
-      let priceScore = 50;
+      const matchQty = Number(match.quantity) || 0;
+
+      let priceScore = 40;
       if (maxPrice > minPrice) {
         priceScore =
           request.requestType === 'Buyer'
-            ? ((maxPrice - price) / (maxPrice - minPrice)) * 50
-            : ((price - minPrice) / (maxPrice - minPrice)) * 50;
+            ? ((maxPrice - price) / (maxPrice - minPrice)) * 40
+            : ((price - minPrice) / (maxPrice - minPrice)) * 40;
       }
-      return { ...match, totalScore: proximity.score + priceScore, proximityLabel: proximity.label };
+
+      // Bonus score (up to 20 pts) based on how much of the requested quantity can be fulfilled
+      const qtyRatio = currentReqQty > 0 ? Math.min(matchQty, currentReqQty) / currentReqQty : 1;
+      const qtyScore = qtyRatio * 20;
+
+      return {
+        ...match,
+        totalScore: proximity.score + priceScore + qtyScore,
+        proximityLabel: proximity.label
+      };
     })
     .sort((a, b) => b.totalScore - a.totalScore);
 
   const bestMatch = matchedRequestsList.length > 0 ? matchedRequestsList[0] : null;
+
+  // Helper to resolve the sender's advertisement location first, falling back to offer.senderLocation
+  const getOfferLocation = (offer) => {
+    if (offer.sourceRequestId) {
+      const sourcePost = allRequests.find(r => String(r.id) === String(offer.sourceRequestId));
+      if (sourcePost?.location) return sourcePost.location;
+    }
+    return offer.senderLocation || '';
+  };
 
   // 2. Received Offers
   const getRankedOffers = () => {
@@ -209,8 +230,9 @@ const RequestDetail = ({
         const offeredQty = Number(offer.quantityOffered) || 0;
         const isQuantityValid = request.requestType === 'Seller' ? offeredQty <= targetQty : offeredQty > 0;
 
-        const proximity = offer.senderLocation
-          ? getProximityInfo(request.location, offer.senderLocation)
+        const effectiveLocation = getOfferLocation(offer);
+        const proximity = effectiveLocation
+          ? getProximityInfo(request.location, effectiveLocation)
           : { score: 20, label: '📍 Partner Location' };
         const locationScore = (proximity.score / 50) * 40;
 
@@ -227,6 +249,7 @@ const RequestDetail = ({
 
         return {
           ...offer,
+          senderLocation: effectiveLocation,
           originalIndex: idx,
           totalScore: locationScore + priceScore + qtyScore,
           isQuantityValid,
@@ -280,7 +303,7 @@ const RequestDetail = ({
         postOwnerLocation: request.location,
         postOwnerContact: request.contact,
         offerSenderName: deal.sender,
-        offerSenderLocation: deal.senderLocation || 'Partner District',
+        offerSenderLocation: getOfferLocation(deal) || 'Partner District',
         offerSenderContact: deal.senderContact,
         agreedPrice: deal.offeredPrice,
         quantity: deal.quantityOffered,
@@ -309,7 +332,7 @@ const RequestDetail = ({
         postOwnerLocation: item.targetPost.location,
         postOwnerContact: item.targetPost.contact,
         offerSenderName: item.offer.sender,
-        offerSenderLocation: item.offer.senderLocation || request.location,
+        offerSenderLocation: request.location || item.offer.senderLocation,
         offerSenderContact: item.offer.senderContact || request.contact,
         agreedPrice: item.offer.offeredPrice,
         quantity: item.offer.quantityOffered,
@@ -321,7 +344,7 @@ const RequestDetail = ({
   const requestAcceptedDeals = [...receivedAcceptedDeals, ...sentAcceptedDeals];
 
   const handleOpenMatchModal = (matchReq) => {
-    setActivePopup(null); // Close MatchedRequestsModal before opening OfferModal
+    setActivePopup(null);
     setActiveMatchedRequest(matchReq);
     setShowMatchModal(true);
   };
@@ -337,9 +360,12 @@ const RequestDetail = ({
       key: 'matched',
       icon: '⚡',
       title: 'Matched Requests',
-      subtitle: 'Auto-matched posts & best price',
+      subtitle: 'Auto-matched ads & best price',
       count: matchedRequestsList.length,
-      accentColor: '#198754',
+      accentColor: '#136534',
+      softBg: '#f2fbf5',
+      iconBg: 'rgba(19, 101, 52, 0.14)',
+      glowColor: 'rgba(25, 135, 84, 0.25)',
       badgeBg: 'success'
     },
     {
@@ -349,24 +375,33 @@ const RequestDetail = ({
       subtitle: 'Incoming bids ranked by value',
       count: rankedOffers.length,
       accentColor: '#0d6efd',
+      softBg: '#f3f8ff',
+      iconBg: 'rgba(13, 110, 253, 0.14)',
+      glowColor: 'rgba(13, 110, 253, 0.25)',
       badgeBg: 'primary'
     },
     {
       key: 'sent',
       icon: '📤',
       title: 'Sent Offers',
-      subtitle: 'Bids sent from this post',
+      subtitle: 'Bids sent from this advertisement',
       count: sentOffersFromThisPost.length,
-      accentColor: '#0dcaf0',
+      accentColor: '#087990',
+      softBg: '#f0fbfd',
+      iconBg: 'rgba(13, 202, 240, 0.18)',
+      glowColor: 'rgba(13, 202, 240, 0.3)',
       badgeBg: 'info'
     },
     {
       key: 'accepted',
       icon: '🤝',
       title: 'Accepted Deals',
-      subtitle: 'Confirmed deals & receipts',
+      subtitle: 'Confirmed deals & order receipts',
       count: requestAcceptedDeals.length,
-      accentColor: '#ffc107',
+      accentColor: '#b45309',
+      softBg: '#fffbeb',
+      iconBg: 'rgba(245, 158, 11, 0.18)',
+      glowColor: 'rgba(245, 158, 11, 0.3)',
       badgeBg: 'warning'
     }
   ];
@@ -377,7 +412,7 @@ const RequestDetail = ({
       <div className="d-flex justify-content-between align-items-center mb-4">
         <div>
           <span className="text-muted small" style={{ cursor: 'pointer' }} onClick={onBack}>
-            🏠 My Requests & Matches
+            🏠 My Requests &amp; Matches
           </span>
           <span className="text-muted small mx-2">›</span>
           <span className="fw-bold text-dark small">Request Details</span>
@@ -404,77 +439,132 @@ const RequestDetail = ({
         </div>
       </div>
 
-      {/* Scenic Background Hero Banner Card */}
+      {/* Shaded Green Hero Banner & Stats Card */}
       <Card className="border-0 shadow-sm mb-4 position-relative overflow-hidden rounded-4 bg-white">
         <div
-          className="position-absolute w-100 h-100"
+          className="p-4 p-md-5 position-relative overflow-hidden"
           style={{
-            background: 'url("/farm-banner.png")',
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            filter: 'blur(8px)',
-            transform: 'scale(1.05)',
-            zIndex: 0,
-            top: 0,
-            left: 0
+            background:
+              'radial-gradient(circle at 75% 48%, rgba(22, 163, 74, 0.34) 0%, rgba(34, 197, 94, 0.16) 42%, transparent 70%), linear-gradient(120deg, #effaf3 0%, #c8eed6 52%, #97dca9 100%)',
+            minHeight: '305px'
           }}
-        />
-        <div
-          className="position-absolute w-100 h-100"
-          style={{
-            background: 'linear-gradient(90deg, rgba(255,255,255,1) 0%, rgba(255,255,255,0.85) 45%, rgba(255,255,255,0.1) 100%)',
-            zIndex: 1,
-            top: 0,
-            left: 0
-          }}
-        />
-        <div className="p-5 position-relative d-flex flex-column justify-content-center" style={{ minHeight: '300px', zIndex: 2 }}>
-          <Row className="align-items-center g-4 w-100 m-0">
-            <Col md={5} className="px-0">
-              <div className="d-flex align-items-center gap-3 mb-3">
-                <Badge bg={request.requestType === 'Buyer' ? 'primary' : 'success'} className="px-4 py-2 rounded-pill fs-6 shadow-sm">
-                  {request.requestType}
+        >
+          {/* Top-Right Request ID Floating Badge */}
+          <div
+            className="d-flex justify-content-end mb-3 mb-lg-0"
+            style={{
+              position: 'relative',
+              zIndex: 5
+            }}
+          >
+            <div
+              className="bg-white px-3 py-2 rounded-4 d-inline-flex align-items-center gap-3"
+              style={{
+                boxShadow: '0 8px 24px rgba(15, 61, 36, 0.12)'
+              }}
+            >
+              <div>
+                <span className="text-muted d-block fw-semibold" style={{ fontSize: '11px' }}>
+                  Request ID
+                </span>
+                <strong className="text-dark" style={{ fontSize: '14px' }}>
+                  {request.id}
+                </strong>
+              </div>
+              <Button
+                variant="light"
+                size="sm"
+                className="p-2 border-0 rounded-3"
+                style={{ backgroundColor: '#dcfce7', color: '#15803d' }}
+                onClick={copyRequestId}
+                title="Copy ID"
+              >
+                📋
+              </Button>
+            </div>
+          </div>
+
+          <Row className="align-items-center g-4 mt-lg-n4">
+            {/* Left Side: Role & Category Pills, Dark Title, Location & Date Pills, Description */}
+            <Col lg={6}>
+              <div className="d-flex align-items-center gap-2 flex-wrap mb-3">
+                <Badge
+                  bg={request.requestType === 'Buyer' ? 'primary' : 'success'}
+                  className="px-3 py-2 rounded-pill fw-semibold shadow-sm"
+                  style={{ fontSize: '0.82rem' }}
+                >
+                  {request.requestType === 'Buyer' ? '🛒 Buyer' : '🚜 Seller'}
                 </Badge>
-                <Badge bg="light" className="px-4 py-2 rounded-pill text-dark shadow-sm border fs-6">
+                <span
+                  className="bg-white px-3 py-2 rounded-pill fw-semibold text-dark shadow-sm"
+                  style={{ fontSize: '0.82rem' }}
+                >
                   🏷️ {request.category}
-                </Badge>
+                </span>
               </div>
-              <h1 className="fw-bold display-4 mb-3 text-dark" style={{ letterSpacing: '-1px' }}>{request.title}</h1>
-              <div className="d-flex align-items-center gap-3 text-muted fw-bold mb-3 fs-6">
-                <span>📍 {request.location}</span>
-                <span>•</span>
-                <span>📅 Valid Until: {request.biddingEndTime}</span>
+
+              <h1
+                className="fw-bold mb-3"
+                style={{
+                  color: '#0f291e',
+                  fontSize: 'clamp(2.1rem, 3.6vw, 3rem)',
+                  letterSpacing: '-0.8px'
+                }}
+              >
+                {request.title}
+              </h1>
+
+              {/* White Pill Chips for Location & Expiry */}
+              <div className="d-flex align-items-center gap-2 flex-wrap mb-3">
+                <span className="bg-white px-3 py-2 rounded-pill small fw-semibold text-dark shadow-sm d-inline-flex align-items-center gap-1">
+                  <span>📍</span>
+                  <span>{request.location}</span>
+                </span>
+                <span className="bg-white px-3 py-2 rounded-pill small fw-semibold text-dark shadow-sm d-inline-flex align-items-center gap-1">
+                  <span>📅</span>
+                  <span>Valid Until: {request.biddingEndTime}</span>
+                </span>
               </div>
-              <p className="text-secondary mb-0 fs-6">{request.description}</p>
+
+              <p
+                className="fst-italic mb-0 fw-medium"
+                style={{ maxWidth: '500px', color: '#1f4d36' }}
+              >
+                {request.description}
+              </p>
             </Col>
-            <Col md={4} className="text-center">
-              {request.image ? (
-                <div className="position-relative d-inline-block">
+
+            {/* Center-Right Side: Tilted White-Framed Product Card */}
+            <Col lg={6} className="d-flex justify-content-center justify-content-lg-start ps-lg-2">
+              <div
+                className="bg-white p-2"
+                style={{
+                  width: '100%',
+                  maxWidth: '345px',
+                  height: '235px',
+                  borderRadius: '26px',
+                  border: '6px solid #ffffff',
+                  transform: 'rotate(2.2deg)',
+                  boxShadow: '0 18px 36px rgba(15, 61, 36, 0.18)',
+                  position: 'relative',
+                  zIndex: 2
+                }}
+              >
+                {request.image ? (
                   <img
                     src={request.image}
                     alt={request.title}
-                    className="rounded-4 shadow-lg border border-3 border-white bg-white"
-                    style={{ width: '320px', height: '200px', objectFit: 'cover' }}
+                    className="w-100 h-100"
+                    style={{ objectFit: 'cover', borderRadius: '18px' }}
                   />
-                </div>
-              ) : (
-                <div
-                  className="bg-light rounded-4 shadow-sm border d-inline-flex align-items-center justify-content-center text-muted fs-6"
-                  style={{ width: '320px', height: '200px' }}
-                >
-                  📷 No Image Available
-                </div>
-              )}
-            </Col>
-            <Col md={3} className="text-end align-self-start pt-2 pr-0">
-              <div className="bg-white px-4 py-2 rounded-4 shadow-sm border d-inline-flex align-items-center gap-3 text-start">
-                <div>
-                  <span className="text-muted d-block fw-semibold" style={{ fontSize: '11px' }}>Request ID</span>
-                  <strong className="text-dark fs-6">{request.id}</strong>
-                </div>
-                <Button variant="light" size="sm" className="p-2 border-0 bg-light rounded-3 shadow-sm" onClick={copyRequestId} title="Copy ID">
-                  📋
-                </Button>
+                ) : (
+                  <div
+                    className="w-100 h-100 d-flex align-items-center justify-content-center fs-1"
+                    style={{ backgroundColor: '#dcfce7', borderRadius: '18px' }}
+                  >
+                    🌱
+                  </div>
+                )}
               </div>
             </Col>
           </Row>
@@ -483,35 +573,63 @@ const RequestDetail = ({
         {/* Four Statistics Cards Grid */}
         <Card.Body className="bg-white p-4 border-top position-relative" style={{ zIndex: 2 }}>
           <Row className="g-3">
-            <Col md={2}>
-              <div className="bg-light p-3 rounded-4 border-0 h-100">
-                <span className="text-muted small d-block mb-1" style={{ fontSize: '11px' }}>Target Price</span>
-                <h5 className="text-success fw-bold mb-0 text-truncate">LKR {request.startingPrice}</h5>
-              </div>
-            </Col>
+            {/* Highlighted Target Price Card */}
             <Col md={3}>
-              <div className="bg-light p-3 rounded-4 border-0 h-100">
-                <span className="text-muted small d-block mb-1" style={{ fontSize: '11px' }}>Quantity Available</span>
-                <h5 className="text-dark fw-bold mb-0 text-truncate">📦 {request.quantity || 0} Kg</h5>
+              <div
+                className="p-3 rounded-4 h-100 text-white shadow-sm d-flex flex-column justify-content-center"
+                style={{
+                  background: 'linear-gradient(135deg, #136534 0%, #198754 100%)'
+                }}
+              >
+                <span className="text-white-50 fw-semibold d-block mb-1" style={{ fontSize: '12px' }}>
+                  Target Price
+                </span>
+                <h4 className="fw-bold mb-0 text-truncate">LKR {request.startingPrice}</h4>
               </div>
             </Col>
-            <Col md={4}>
-              <div className="bg-light p-3 rounded-4 border-0 h-100">
-                <span className="text-muted small d-block mb-1" style={{ fontSize: '11px' }}>Current Status</span>
-                <div className="overflow-hidden">
-                  <Badge bg="warning" text="dark" className="px-3 py-2 fs-6 rounded-pill text-wrap text-start d-inline-block w-100 text-truncate">
+
+            {/* Quantity Available Card */}
+            <Col md={3}>
+              <div className="bg-light p-3 rounded-4 border border-secondary-subtle shadow-sm h-100 d-flex flex-column justify-content-center">
+                <span className="text-muted fw-semibold d-block mb-1" style={{ fontSize: '12px' }}>
+                  Quantity Available
+                </span>
+                <h4 className="text-dark fw-bold mb-0 text-truncate">
+                  📦 {request.quantity || 0} {getUnitByCategory(request.category)}
+                </h4>
+              </div>
+            </Col>
+
+            {/* Current Status Card */}
+            <Col md={3}>
+              <div className="bg-light p-3 rounded-4 border border-secondary-subtle shadow-sm h-100 d-flex flex-column justify-content-center">
+                <span className="text-muted fw-semibold d-block mb-1" style={{ fontSize: '12px' }}>
+                  Current Status
+                </span>
+                <div>
+                  <Badge
+                    bg="warning"
+                    text="dark"
+                    className="px-3 py-2 fs-6 rounded-pill shadow-sm d-inline-block w-100 text-truncate text-start"
+                  >
                     ⏳ {request.status}
                   </Badge>
                 </div>
               </div>
             </Col>
+
+            {/* Contact Person Card */}
             <Col md={3}>
-              <div className="bg-light p-3 rounded-4 border-0 h-100 d-flex justify-content-between align-items-center">
+              <div className="bg-light p-3 rounded-4 border border-secondary-subtle shadow-sm h-100 d-flex justify-content-between align-items-center">
                 <div className="text-truncate">
-                  <span className="text-muted small d-block mb-1" style={{ fontSize: '11px' }}>Contact Person</span>
-                  <strong className="text-dark text-truncate d-block">{request.buyerName || 'My Profile'}</strong>
+                  <span className="text-muted fw-semibold d-block mb-1" style={{ fontSize: '12px' }}>
+                    Contact Person
+                  </span>
+                  <strong className="text-dark fs-6 text-truncate d-block">
+                    {request.buyerName || 'My Profile'}
+                  </strong>
                 </div>
-                <span className="text-muted fs-4">›</span>
+                <span className="text-secondary fs-4 fw-bold">›</span>
               </div>
             </Col>
           </Row>
@@ -519,39 +637,49 @@ const RequestDetail = ({
       </Card>
 
       {/* 4 Highlighted Interactive Action Button Cards */}
-      <Row className="g-3">
+      <Row className="g-3 mt-1">
         {actionCards.map(item => (
           <Col md={6} lg={3} key={item.key}>
             <Card
               role="button"
               onClick={() => setActivePopup(item.key)}
-              className="border-0 shadow-sm rounded-4 h-100 bg-white"
+              className="rounded-4 h-100"
               style={{
                 cursor: 'pointer',
-                borderTop: `4px solid ${item.accentColor}`,
+                backgroundColor: item.softBg,
+                border: '1px solid rgba(0, 0, 0, 0.08)',
+                borderLeft: `6px solid ${item.accentColor}`,
+                boxShadow: '0 4px 14px rgba(0, 0, 0, 0.06)',
                 transition: 'transform 0.18s ease, box-shadow 0.18s ease'
               }}
               onMouseEnter={e => {
-                e.currentTarget.style.transform = 'translateY(-4px)';
-                e.currentTarget.style.boxShadow = '0 0.75rem 1.5rem rgba(0, 0, 0, 0.1)';
+                e.currentTarget.style.transform = 'translateY(-5px)';
+                e.currentTarget.style.boxShadow = '0 12px 24px rgba(0, 0, 0, 0.12)';
               }}
               onMouseLeave={e => {
                 e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '';
+                e.currentTarget.style.boxShadow = '0 4px 14px rgba(0, 0, 0, 0.06)';
               }}
             >
               <Card.Body className="p-4 d-flex flex-column justify-content-between">
-                <div className="d-flex justify-content-between align-items-start mb-3">
+                <div className="d-flex justify-content-between align-items-center mb-3">
                   <div
-                    className="rounded-3 d-flex align-items-center justify-content-center fs-3 bg-light"
-                    style={{ width: '50px', height: '50px' }}
+                    className="rounded-3 d-flex align-items-center justify-content-center fs-3 shadow-sm"
+                    style={{
+                      width: '52px',
+                      height: '52px',
+                      backgroundColor: item.iconBg
+                    }}
                   >
                     {item.icon}
                   </div>
                   <Badge
                     bg={item.count > 0 ? item.badgeBg : 'secondary'}
                     text={item.badgeBg === 'warning' || item.badgeBg === 'info' ? 'dark' : 'white'}
-                    className="fs-6 px-3 py-2 rounded-pill shadow-sm"
+                    className="fs-6 px-3 py-2 rounded-pill"
+                    style={{
+                      boxShadow: item.count > 0 ? `0 0 0 5px ${item.glowColor}` : 'none'
+                    }}
                   >
                     {item.count}
                   </Badge>
@@ -559,10 +687,13 @@ const RequestDetail = ({
 
                 <div>
                   <h5 className="fw-bold text-dark mb-1">{item.title}</h5>
-                  <p className="text-muted small mb-3">{item.subtitle}</p>
-                  <div className="fw-bold small d-flex align-items-center justify-content-between" style={{ color: item.accentColor }}>
+                  <p className="text-secondary small mb-3">{item.subtitle}</p>
+                  <div
+                    className="fw-bold small px-3 py-2 rounded-3 d-flex align-items-center justify-content-between bg-white border"
+                    style={{ color: item.accentColor }}
+                  >
                     <span>Click to View Details</span>
-                    <span>→</span>
+                    <span className="fs-6">→</span>
                   </div>
                 </div>
               </Card.Body>

@@ -1,13 +1,16 @@
 import React from 'react';
 import { Modal, Table, Badge, Button } from 'react-bootstrap';
 import { downloadDealReceipt } from '../../utils/receiptGenerator';
+import { getUnitByCategory } from '../../utils/unitHelper';
 
-const AcceptedDealsModal = ({ show, onHide, request, requestAcceptedDeals }) => {
+const AcceptedDealsModal = ({ show, onHide, request = {}, requestAcceptedDeals = [] }) => {
+  const unit = getUnitByCategory(request?.category);
+
   return (
     <Modal show={show} onHide={onHide} size="xl" centered scrollable>
       <Modal.Header closeButton className="bg-warning text-dark">
         <Modal.Title className="h5 fw-bold">
-          🤝 Accepted Deals for {request.title} ({requestAcceptedDeals.length})
+          🤝 Accepted Deals for {request?.title || 'Request'} ({requestAcceptedDeals.length})
         </Modal.Title>
       </Modal.Header>
 
@@ -43,14 +46,14 @@ const AcceptedDealsModal = ({ show, onHide, request, requestAcceptedDeals }) => 
                     <td className="fw-bold text-success">LKR {deal.agreedPrice}</td>
                     <td>
                       <Badge bg="warning" text="dark" className="px-2 py-1">
-                        📦 {deal.quantityOffered} kg
+                        📦 {deal.quantityOffered} {unit}
                       </Badge>
                     </td>
                     <td>{deal.deliveryDate}</td>
-                    <td className="text-muted small">"{deal.remarks || 'No remarks'}"</td>
+                    <td className="text-muted small">&quot;{deal.remarks || 'No remarks'}&quot;</td>
                     <td>
                       <Badge bg="success" className="px-3 py-1 rounded-pill">
-                        Confirmed & Processing 🚚
+                        Confirmed &amp; Processing 🚚
                       </Badge>
                     </td>
                     <td>

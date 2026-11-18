@@ -30,7 +30,7 @@ const OfferModal = ({ show, onHide, targetRequest, sourceRequest = null, refresh
     const newOffer = {
       sender: user?.name || 'Registered Farmer',
       senderId: user?.id || null,
-      senderLocation: user?.district || '',
+      senderLocation: sourceRequest?.location || user?.district || '',
       senderContact: user?.phone || user?.contact || sourceRequest?.contact || '',
       sourceRequestId: sourceRequest?.id || null,
       sourceRequestTitle: sourceRequest?.title || '',
